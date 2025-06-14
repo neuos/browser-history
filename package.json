@@ -29,6 +29,7 @@
 		"rules": {}
 	},
 	"dependencies": {
+		"caniuse-lite": "^1.0.30001723",
 		"webext-base-css": "^2.0.1",
 		"webext-options-sync": "^4.2.3"
 	},
