@@ -181,6 +181,7 @@ export class HistoryService {
                 favicon: page?.favicon || null,
                 timestamp: node.timestamp,
                 parentId: node.navigationSourceID || null,
+                metadata: page?.metadata || {},
                 children: [] // Populate children if needed
             };
         });

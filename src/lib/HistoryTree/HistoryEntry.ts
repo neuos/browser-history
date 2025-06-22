@@ -1,4 +1,4 @@
-import { HistoryNodeId } from './HistoryNode';
+import { HistoryNodeId, PageMetadata } from './HistoryNode';
 
 interface HistoryEntry {
     id: HistoryNodeId;
@@ -7,6 +7,7 @@ interface HistoryEntry {
     timestamp: Date;
     parentId: HistoryNodeId | null;
     favicon: string | null;
+    metadata?: PageMetadata;
     children?: HistoryEntry[];
 }
 export type { HistoryEntry };

@@ -59,6 +59,17 @@
     }
   }
 
+  // Get description from metadata (Open Graph or meta description)
+  function getDescription(entry: any): string | null {
+    if (!entry.metadata) return null;
+    
+    // Priority: og:description > twitter:description > meta:description
+    return entry.metadata['og:description'] || 
+           entry.metadata['twitter:description'] || 
+           entry.metadata['meta:description'] || 
+           null;
+  }
+
   // Load history data
   async function loadHistory() {
     loadingDebouncer.start();
@@ -194,6 +205,11 @@
                   <div class="history-item-url" title={entry.url}>
                     {#if getUrlParts(entry.url).schema}<span class="url-schema">{getUrlParts(entry.url).schema}</span>{/if}<span class="url-host">{getUrlParts(entry.url).host}</span>{#if getUrlParts(entry.url).path && getUrlParts(entry.url).path !== '/'}<span class="url-path">{getUrlParts(entry.url).path}</span>{/if}{#if getUrlParts(entry.url).query}<span class="url-query">{getUrlParts(entry.url).query}</span>{/if}
                   </div>
+                  {#if getDescription(entry)}
+                    <div class="history-item-description" title={getDescription(entry)}>
+                      {getDescription(entry)}
+                    </div>
+                  {/if}
                 </div>
                 <div class="history-item-time">
                   {formatDate(entry.timestamp)}
@@ -415,6 +431,17 @@
     overflow: hidden;
     text-overflow: ellipsis;
     /* font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; */
+  }
+
+  .history-item-description {
+    color: #5f6368;
+    font-size: 11px;
+    line-height: 1.3;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
   }
 
   .url-schema {
