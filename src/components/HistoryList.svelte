@@ -1,14 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { HistoryService } from "@/lib/HistoryTree/HistoryService";
-  
   import { HistoryRepositoryIndexedDB } from "@/lib/HistoryTree/HistoryRepositoryIndexedDB";
   import { PageRepositoryIndexedDB } from "@/lib/HistoryTree/PageRepositoryIndexedDB";
   import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
+  import { Debouncer as Debouncer } from "@/lib/Debouncer";
 
   let history: HistoryEntry[] = [];
   let isLoading = true;
   let error: string | undefined;
+  let searchTerm = "";
+  let startDate = "";
+  let endDate = "";
+
+  const loadingDebouncer = new Debouncer(30, () => isLoading = true, () => isLoading = false);
 
   const service = new HistoryService(
     new HistoryRepositoryIndexedDB(),
@@ -22,7 +27,6 @@
       day: "numeric",
       hour: "numeric",
       minute: "numeric",
-      second: "numeric",
     }).format(date);
   }
 
@@ -35,124 +39,305 @@
     }
   }
 
+  // Get URL parts for styled display
+  function getUrlParts(url: string): { schema: string; host: string; path: string; query: string } {
+    try {
+      const urlObj = new URL(url);
+      return {
+        schema: urlObj.protocol + "//",
+        host: urlObj.hostname,
+        path: urlObj.pathname,
+        query: urlObj.search + urlObj.hash
+      };
+    } catch (e) {
+      return {
+        schema: "",
+        host: url,
+        path: "",
+        query: ""
+      };
+    }
+  }
+
   // Load history data
   async function loadHistory() {
+    loadingDebouncer.start();
+
     try {
-      isLoading = true;
-      history = await service.getHistoryEntries();
+      const start = startDate ? new Date(startDate) : undefined;
+      const end = endDate ? new Date(endDate) : undefined;
+
+      if (end) {
+        // Set to the end of the day to include all entries for that day
+        end.setHours(23, 59, 59, 999);
+      }
+
+      history = await service.getHistoryEntries({
+        query: searchTerm,
+        startDate: start,
+        endDate: end,
+      });
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to load history";
     } finally {
-      isLoading = false;
+      loadingDebouncer.stop();
     }
   }
 
   onMount(() => {
     loadHistory();
   });
+
+  function handleSearch() {
+    loadHistory();
+  }
+
+  function clearFilters() {
+    searchTerm = "";
+    startDate = "";
+    endDate = "";
+    loadHistory();
+  }
 </script>
 
 <div class="history-container">
   <h1>Browsing History</h1>
 
-  <button class="refresh-btn" on:click={loadHistory} disabled={isLoading}>
-    {isLoading ? "Loading..." : "Refresh"}
-  </button>
+  <div class="controls">
+    <input
+      type="text"
+      bind:value={searchTerm}
+      placeholder="Search history..."
+      class="search-box"
+      on:input={handleSearch}
+    />
+    <input
+      type="date"
+      class="date-input"
+      bind:value={startDate}
+      on:change={handleSearch}
+    />
+    <input
+      type="date"
+      class="date-input"
+      bind:value={endDate}
+      on:change={handleSearch}
+    />
+    <button class="refresh-btn" on:click={loadHistory} disabled={isLoading} hidden>
+      {isLoading ? "Loading..." : "Refresh"}
+    </button>
+  </div>
 
-  {#if error}
-    <div class="error-message">
-      Error: {error}
-    </div>
-  {/if}
+  <div class="list-wrapper">
+    {#if error}
+      <div class="error-message">
+        Error: {error}
+      </div>
+    {/if}
 
-  {#if isLoading}
-    <div class="loading">Loading history...</div>
-  {:else if history.length === 0}
-    <div class="empty-state">No browsing history available.</div>
-  {:else}
-    <ul class="history-list">
-      {#each history as entry (entry.id)}
-        <li class="history-item">
-          <a href={entry.url} target="_blank" rel="noopener noreferrer">
-            <div class="history-item-content">
-              {#if entry.favicon}
-                <img
-                  class="favicon"
-                  src={entry.favicon}
-                  alt="favicon"
-                  width="20"
-                  height="20"
-                />
-              {/if}
-              <div class="history-item-title">
-                {entry.title || entry.url}
+    {#if isLoading}
+      <div class="loading">Loading history...</div>
+    {:else if history.length === 0}
+      <div class="empty-state">
+        {#if searchTerm || startDate || endDate}
+          <p>No history entries match your search.</p>
+          <button class="secondary-btn" on:click={clearFilters}
+            >Clear filters</button
+          >
+        {:else}
+          <p>Your browsing history is empty.</p>
+          <p class="subtle">Pages you visit will appear here.</p>
+        {/if}
+      </div>
+    {:else}
+      <ul class="history-list">
+        {#each history as entry (entry.id)}
+          <li class="history-item">
+            <a href={entry.url} target="_blank" rel="noopener noreferrer">
+              <div class="history-item-content">
+                <div class="favicon-container">
+                  {#if entry.favicon}
+                    <img
+                      class="favicon"
+                      src={entry.favicon}
+                      alt=""
+                      width="20"
+                      height="20"
+                    />
+                  {:else}
+                    <svg
+                      class="favicon-placeholder"
+                      width="20"
+                      height="20"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="2" y1="12" x2="22" y2="12" />
+                      <path
+                        d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
+                      />
+                    </svg>
+                  {/if}
+                </div>
+                <div class="entry-info">
+                  <div
+                    class="history-item-title"
+                    title={entry.title || entry.url}
+                  >
+                    {entry.title || entry.url}
+                  </div>
+                  <div class="history-item-url" title={entry.url}>
+                    {#if getUrlParts(entry.url).schema}<span class="url-schema">{getUrlParts(entry.url).schema}</span>{/if}<span class="url-host">{getUrlParts(entry.url).host}</span>{#if getUrlParts(entry.url).path && getUrlParts(entry.url).path !== '/'}<span class="url-path">{getUrlParts(entry.url).path}</span>{/if}{#if getUrlParts(entry.url).query}<span class="url-query">{getUrlParts(entry.url).query}</span>{/if}
+                  </div>
+                </div>
+                <div class="history-item-time">
+                  {formatDate(entry.timestamp)}
+                </div>
               </div>
-              <div class="history-item-url">
-                {getDomain(entry.url)}
-              </div>
-              <div class="history-item-time">
-                {formatDate(entry.timestamp)}
-              </div>
-            </div>
-          </a>
-        </li>
-      {/each}
-    </ul>
-  {/if}
+            </a>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
 </div>
 
 <style>
   .history-container {
+    display: flex;
+    flex-direction: column;
+    height: 580px;
     width: 100%;
-    max-width: 800px;
-    margin: 0 auto;
+    box-sizing: border-box;
+    margin: 0;
     padding: 16px;
-    font-family:
-      system-ui,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
-      Roboto,
-      Oxygen,
-      Ubuntu,
-      Cantarell,
-      sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    background-color: #fff;
+    color: #202124;
+  }
+
+  .list-wrapper {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   h1 {
-    color: #333;
-    margin-bottom: 20px;
-  }
-
-  .refresh-btn {
-    background-color: #4a86e8;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
+    font-size: 18px;
+    font-weight: 600;
+    color: #3c4043;
+    margin-top: 0;
     margin-bottom: 16px;
   }
 
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+
+  .search-box {
+    flex: 1 1 100%;
+    order: 1;
+    padding: 10px 16px;
+    font-size: 14px;
+    border: 1px solid #dfe1e5;
+    border-radius: 24px;
+    outline: none;
+    transition:
+      box-shadow 0.2s,
+      border-color 0.2s;
+  }
+
+  .search-box:hover {
+    border-color: #cdd1d5;
+  }
+
+  .search-box:focus {
+    border-color: #1a73e8;
+    box-shadow: 0 0 0 1px #1a73e8;
+  }
+
+  .date-input {
+    flex: 1 1 auto;
+    order: 2;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #dfe1e5;
+    border-radius: 6px;
+  }
+
+  .refresh-btn {
+    order: 3;
+    background-color: #1a73e8;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    transition: background-color 0.2s;
+  }
+
   .refresh-btn:disabled {
-    background-color: #aaa;
+    background-color: #e0e0e0;
+    color: #a0a0a0;
     cursor: not-allowed;
   }
 
+  .refresh-btn:hover:not(:disabled) {
+    background-color: #185abc;
+  }
+
   .error-message {
-    color: #d32f2f;
-    padding: 10px;
-    background-color: #ffebee;
-    border-radius: 4px;
+    color: #d93025;
+    padding: 12px;
+    background-color: #fce8e6;
+    border-radius: 8px;
     margin-bottom: 16px;
   }
 
   .loading,
   .empty-state {
     text-align: center;
-    color: #666;
-    padding: 20px;
+    color: #5f6368;
+    padding: 40px 20px;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+  }
+
+  .empty-state p {
+    margin: 0 0 12px;
+  }
+
+  .empty-state .subtle {
+    color: #80868b;
+    font-size: 14px;
+  }
+
+  .secondary-btn {
+    background-color: transparent;
+    color: #1a73e8;
+    border: 1px solid #dadce0;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .secondary-btn:hover {
+    background-color: #f8f9fa;
+    border-color: #cdd1d5;
   }
 
   .history-list {
@@ -162,46 +347,100 @@
   }
 
   .history-item {
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid #e8eaed;
+  }
+
+  .history-item:last-child {
+    border-bottom: none;
   }
 
   .history-item a {
     display: block;
-    padding: 12px 8px;
-    color: inherit;
     text-decoration: none;
+    color: inherit;
+    padding: 8px 4px; /* REDUCE padding */
+    border-radius: 4px;
     transition: background-color 0.2s;
   }
 
   .history-item a:hover {
-    background-color: #f5f5f5;
+    background-color: #f8f9fa;
   }
 
   .history-item-content {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px; /* REDUCE gap */
   }
 
-  .history-item-title {
-    font-weight: 500;
-    color: #333;
-  }
-
-  .history-item-url {
-    color: #1a73e8;
-    font-size: 14px;
-  }
-
-  .history-item-time {
-    color: #70757a;
-    font-size: 12px;
+  .favicon-container {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .favicon {
-    vertical-align: middle;
-    margin-right: 8px;
-    border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    width: 16px;
+    height: 16px;
+    border-radius: 2px;
+  }
+
+  .favicon-placeholder {
+    width: 20px;
+    height: 20px;
+    color: #5f6368;
+  }
+
+  .entry-info { 
+    flex-grow: 1;
+    min-width: 0; /* Important for text-overflow to work in flex children */
+  }
+
+  .history-item-title {
+    font-size: 14px;
+    font-weight: 400;
+    color: #202124;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .history-item-url {
+    color: #5f6368;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    /* font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; */
+  }
+
+  .url-schema {
+    color: #80868b;
+    font-weight: 300;
+  }
+
+  .url-host {
+    color: #202124;
+    font-weight: 600;
+  }
+
+  .url-path {
+    color: #5f6368;
+    font-weight: 400;
+  }
+
+  .url-query {
+    color: #80868b;
+    font-weight: 300;
+  }
+
+  .history-item-time {
+    color: #5f6368;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 </style>

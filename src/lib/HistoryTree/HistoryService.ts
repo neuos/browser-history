@@ -37,6 +37,7 @@ export class HistoryService {
 
         const title = changeInfo.title
         if (title) {
+            console.warn(`Updating title for tab ${tab.id}: ${title}`);
             this.updateTitle(tab.url, title);
         }
     }

@@ -47,22 +47,48 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
    */
   protected async saveItem(entity: T): Promise<void> {
     const db = await this.getDB();
-    const itemToStore = this.prepareForStorage(entity);
-    
+    let itemToStore = this.prepareForStorage(entity);
+
+    const existingKey = this.getEntityKey(entity);
+    const existingItem = await this.getItem(existingKey);
+    if (existingItem) {
+      itemToStore = this.update(existingItem, itemToStore);
+    }
+    console.log('Saving item to store:', this.STORE_NAME, itemToStore);
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], 'readwrite');
       const store = transaction.objectStore(this.STORE_NAME);
-      
+
       const request = store.put(itemToStore);
-      
+
       request.onerror = () => {
         reject(request.error);
       };
-      
+
       transaction.oncomplete = () => {
         resolve();
       };
     });
+  }
+  
+  /**
+   * Updates an existing item with new properties
+   * Only properties that are not undefined in newItem will be updated
+   * Existing properties will remain unchanged if not specified in newItem
+   *
+   * @param existingItem The item to update
+   * @param newItem The new item with properties to update
+   * @returns The updated item
+   */
+  update(existingItem: T, newItem: T): T {
+    const updatedItem = { ...existingItem };
+    for (const key in newItem) {
+      if (newItem[key] !== undefined) {
+        updatedItem[key] = newItem[key];
+      }
+    }
+    return updatedItem;
   }
 
   /**
@@ -70,44 +96,44 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
    */
   protected async getItem(key: K): Promise<T | undefined> {
     const db = await this.getDB();
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], 'readonly');
       const store = transaction.objectStore(this.STORE_NAME);
-      
+
       const request = store.get(key);
-      
+
       request.onerror = () => {
         reject(request.error);
       };
-      
+
       request.onsuccess = () => {
         if (!request.result) {
           resolve(undefined);
           return;
         }
-        
+
         resolve(this.processFromStorage(request.result));
       };
     });
   }
-  
+
   /**
    * Gets all entities from the store
    */
   protected async getAllItems(): Promise<T[]> {
     const db = await this.getDB();
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], 'readonly');
       const store = transaction.objectStore(this.STORE_NAME);
-      
+
       const request = store.getAll();
-      
+
       request.onerror = () => {
         reject(request.error);
       };
-      
+
       request.onsuccess = () => {
         const items = request.result.map(item => this.processFromStorage(item));
         resolve(items);
@@ -120,18 +146,18 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
    */
   protected async getItemsByIndex(indexName: string, value: any): Promise<T[]> {
     const db = await this.getDB();
-    
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], 'readonly');
       const store = transaction.objectStore(this.STORE_NAME);
       const index = store.index(indexName);
-      
+
       const request = index.getAll(value);
-      
+
       request.onerror = () => {
         reject(request.error);
       };
-      
+
       request.onsuccess = () => {
         const items = request.result.map(item => this.processFromStorage(item));
         resolve(items);
