@@ -1,0 +1,1 @@
+export const SPA_URL_CHANGE = 'spa-url-change';

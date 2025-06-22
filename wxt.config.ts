@@ -9,6 +9,7 @@ export default defineConfig({
       'webNavigation',
       'tabs',
       'storage',
+      'unlimitedStorage',
     ],
   },
   

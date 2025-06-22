@@ -1,3 +1,5 @@
+import { SPA_URL_CHANGE } from "@/message";
+
 // entrypoints/example.content.ts
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -7,7 +9,7 @@ export default defineContentScript({
     // Helper function to notify background script
     const notifyUrlChange = () => {
       const url = window.location.href;
-      browser.runtime.sendMessage({ type: 'spa-url-change', url });
+      browser.runtime.sendMessage({ type: SPA_URL_CHANGE, url });
     };
 
     // Override pushState
