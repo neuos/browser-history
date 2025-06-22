@@ -1,22 +1,28 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { HistoryRepositoryIndexedDB } from '@/lib/HistoryTree/HistoryRepositoryIndexedDB';
-  import type { HistoryNode } from '@/lib/HistoryTree/HistoryNode';
+  import { onMount } from "svelte";
+  import { HistoryService } from "@/lib/HistoryTree/HistoryService";
+  
+  import { HistoryRepositoryIndexedDB } from "@/lib/HistoryTree/HistoryRepositoryIndexedDB";
+  import { PageRepositoryIndexedDB } from "@/lib/HistoryTree/PageRepositoryIndexedDB";
+  import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
 
-  let historyNodes: HistoryNode[] = [];
+  let history: HistoryEntry[] = [];
   let isLoading = true;
   let error: string | undefined;
 
-  const repo = new HistoryRepositoryIndexedDB();
+  const service = new HistoryService(
+    new HistoryRepositoryIndexedDB(),
+    new PageRepositoryIndexedDB(),
+  );
 
   // Format date to a readable string
   function formatDate(date: Date): string {
-    return new Intl.DateTimeFormat('default', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      second: 'numeric',
+    return new Intl.DateTimeFormat("default", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
     }).format(date);
   }
 
@@ -33,11 +39,9 @@
   async function loadHistory() {
     try {
       isLoading = true;
-      historyNodes = await repo.getAll();
-      // Sort by timestamp, newest first
-      historyNodes.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      history = await service.getHistoryEntries();
     } catch (e) {
-      error = e instanceof Error ? e.message : 'Failed to load history';
+      error = e instanceof Error ? e.message : "Failed to load history";
     } finally {
       isLoading = false;
     }
@@ -50,38 +54,44 @@
 
 <div class="history-container">
   <h1>Browsing History</h1>
-  
+
   <button class="refresh-btn" on:click={loadHistory} disabled={isLoading}>
-    {isLoading ? 'Loading...' : 'Refresh'}
+    {isLoading ? "Loading..." : "Refresh"}
   </button>
-  
+
   {#if error}
     <div class="error-message">
       Error: {error}
     </div>
   {/if}
-  
+
   {#if isLoading}
     <div class="loading">Loading history...</div>
-  {:else if historyNodes.length === 0}
+  {:else if history.length === 0}
     <div class="empty-state">No browsing history available.</div>
   {:else}
     <ul class="history-list">
-      {#each historyNodes as node (node.id)}
+      {#each history as entry (entry.id)}
         <li class="history-item">
-          <a href={node.url} target="_blank" rel="noopener noreferrer">
+          <a href={entry.url} target="_blank" rel="noopener noreferrer">
             <div class="history-item-content">
-              {#if node.favicon}
-                <img class="favicon" src={node.page.favicon} alt="favicon" width="20" height="20" />
+              {#if entry.favicon}
+                <img
+                  class="favicon"
+                  src={entry.favicon}
+                  alt="favicon"
+                  width="20"
+                  height="20"
+                />
               {/if}
               <div class="history-item-title">
-                {node.page?.title || node.url}
+                {entry.title || entry.url}
               </div>
               <div class="history-item-url">
-                {getDomain(node.url)}
+                {getDomain(entry.url)}
               </div>
               <div class="history-item-time">
-                {formatDate(node.timestamp)}
+                {formatDate(entry.timestamp)}
               </div>
             </div>
           </a>
@@ -91,14 +101,22 @@
   {/if}
 </div>
 
-
 <style>
   .history-container {
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
     padding: 16px;
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    font-family:
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      Oxygen,
+      Ubuntu,
+      Cantarell,
+      sans-serif;
   }
 
   h1 {
@@ -130,7 +148,8 @@
     margin-bottom: 16px;
   }
 
-  .loading, .empty-state {
+  .loading,
+  .empty-state {
     text-align: center;
     color: #666;
     padding: 20px;
@@ -183,6 +202,6 @@
     vertical-align: middle;
     margin-right: 8px;
     border-radius: 4px;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   }
 </style>

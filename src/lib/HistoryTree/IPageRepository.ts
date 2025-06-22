@@ -16,4 +16,10 @@ export interface IPageRepository {
      * @returns A Promise that resolves to the Page object if found, or undefined if not found.
      */
     get(url: string): Promise<Page | undefined>;
+
+    /**
+     * Retrieves all pages in the repository.
+     * @returns A Promise that resolves to an array of Page objects.
+     */
+    getAll(): Promise<Page[]>;
 }

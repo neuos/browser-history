@@ -1,23 +1,8 @@
+import { HistoryEntry } from './HistoryEntry';
 import { HistoryNode, HistoryNodeId, Page } from './HistoryNode';
+import { HistorySearchOptions } from './HistorySearchOptions';
 import { IHistoryRepository } from './IHistoryRepository';
 import { IPageRepository } from './IPageRepository';
-
-export interface HistorySearchOptions {
-    query?: string;
-    startDate?: Date;
-    endDate?: Date;
-    limit?: number;
-    offset?: number;
-}
-
-export interface HistoryEntry {
-    id: HistoryNodeId;
-    url: string;
-    title: string | null;
-    timestamp: number;
-    parentId: HistoryNodeId | null;
-    children?: HistoryEntry[];
-}
 
 export class HistoryService {
     private historyRepo: IHistoryRepository;
@@ -70,13 +55,14 @@ export class HistoryService {
         // Only handle main frame navigations
         if (details.frameId !== 0) return;
 
+        const tab = await browser.tabs.get(details.tabId)
         // Handle the navigation event
         this.handleNavigation({
             url: details.url,
             tabId: details.tabId,
             timestamp: Date.now(),
             transitionType: details.transitionType,
-            title: undefined
+            title: tab?.title
         }).catch(error => console.error('Error handling navigation:', error));
     }
 
@@ -127,8 +113,8 @@ export class HistoryService {
             return undefined;
         }
     }
-    
-    isInternalUrl(url: string) :boolean{
+
+    isInternalUrl(url: string): boolean {
         const internalProtocols = ['chrome:', 'chrome-extension:', 'about:', 'moz-extension:'];
         return internalProtocols.some(p => url.startsWith(p));
     }
@@ -179,6 +165,44 @@ export class HistoryService {
         } catch (e) {
             console.error(`Error updating page metadata for ${url}:`, e);
         }
+    }
+
+    async getHistoryEntries(options: HistorySearchOptions = {}): Promise<HistoryEntry[]> {
+        var history = await this.historyRepo.getAll();
+        var pages = await this.pageRepo.getAll();
+
+        const entries: HistoryEntry[] = history.map(node => {
+            const page = pages.find(p => p.url === node.url);
+            return {
+                id: node.id,
+                url: node.url,
+                title: page?.title || null,
+                favicon: page?.favicon || null,
+                timestamp: node.timestamp,
+                parentId: node.navigationSourceID || null,
+                children: [] // Populate children if needed
+            };
+        });
+        return entries.filter(entry => {
+            // Filter by query
+            if (options.query && !entry.url.includes(options.query) && !(entry.title && entry.title.includes(options.query))) {
+                return false;
+            }
+            // Filter by date range
+            if (options.startDate && entry.timestamp < options.startDate) {
+                return false;
+            }
+            if (options.endDate && entry.timestamp > options.endDate) {
+                return false;
+            }
+            return true;
+        }).slice(
+            options.offset || 0,
+            options.limit ? (options.offset || 0) + options.limit : undefined
+        ).sort((a, b) => {
+            // Sort by timestamp descending
+            return b.timestamp.getTime() - a.timestamp.getTime();
+        });
     }
 
 }
