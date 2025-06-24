@@ -1,93 +1,123 @@
-// deno-lint-ignore-file no-explicit-any
-import { Hono } from 'hono'
-import type { Database } from '../database/database.ts'
-import type { Device } from '../types/index.ts'
+import { Hono, Context } from "hono";
+import "../types/hono.d.ts";
+import type { Database } from "../database/database.ts";
+import type { Device } from "../types/index.ts";
 
-const sharedSecret = Deno.env.get('SHARED_SECRET') || 'change-this-secret'
-const jwtSecret = Deno.env.get('JWT_SECRET') || 'change-this-jwt-secret'
+const sharedSecret = Deno.env.get("SHARED_SECRET") || "change-this-secret";
+const jwtSecret = Deno.env.get("JWT_SECRET") || "change-this-jwt-secret";
 
 // Simple JWT creation and verification using Web Crypto API
-async function createSimpleJWT(payload: Record<string, string | number>, secret: string): Promise<string> {
-  const header = { alg: 'HS256', typ: 'JWT' }
-  const encoder = new TextEncoder()
-  
-  const headerB64 = btoa(JSON.stringify(header)).replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '')
-  const payloadB64 = btoa(JSON.stringify(payload)).replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '')
-  
-  const message = `${headerB64}.${payloadB64}`
+async function createSimpleJWT(
+  payload: Record<string, string | number>,
+  secret: string,
+): Promise<string> {
+  const header = { alg: "HS256", typ: "JWT" };
+  const encoder = new TextEncoder();
+
+  const headerB64 = btoa(JSON.stringify(header))
+    .replace(/[+/]/g, (c) => c === "+" ? "-" : "_")
+    .replace(/=/g, "");
+  const payloadB64 = btoa(JSON.stringify(payload))
+    .replace(/[+/]/g, (c) => c === "+" ? "-" : "_")
+    .replace(/=/g, "");
+
+  const message = `${headerB64}.${payloadB64}`;
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign']
+    ["sign"],
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(message),
+  );
+  const signatureB64 = btoa(
+    String.fromCharCode(...new Uint8Array(signature)),
   )
-  
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(message))
-  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-    .replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '')
-  
-  return `${message}.${signatureB64}`
+    .replace(/[+/]/g, (c) => c === "+" ? "-" : "_")
+    .replace(/=/g, "");
+
+  return `${message}.${signatureB64}`;
 }
 
-async function verifySimpleJWT(token: string, secret: string): Promise<Record<string, string | number> | null> {
+async function verifySimpleJWT(
+  token: string,
+  secret: string,
+): Promise<Record<string, string | number> | null> {
   try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    
-    const [headerB64, payloadB64, signatureB64] = parts
-    const encoder = new TextEncoder()
-    
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const [headerB64, payloadB64, signatureB64] = parts;
+    const encoder = new TextEncoder();
+
     // Verify signature
-    const message = `${headerB64}.${payloadB64}`
+    const message = `${headerB64}.${payloadB64}`;
     const key = await crypto.subtle.importKey(
-      'raw',
+      "raw",
       encoder.encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
+      { name: "HMAC", hash: "SHA-256" },
       false,
-      ['verify']
-    )
-    
-    const signature = Uint8Array.from(atob(signatureB64.replace(/[-_]/g, (c) => c === '-' ? '+' : '/')), c => c.charCodeAt(0))
-    const isValid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(message))
-    
-    if (!isValid) return null
-    
+      ["verify"],
+    );
+
+    const signature = Uint8Array.from(
+      atob(signatureB64.replace(/[-_]/g, (c) => c === "-" ? "+" : "/")),
+      (c) => c.charCodeAt(0),
+    );
+    const isValid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      signature,
+      encoder.encode(message),
+    );
+
+    if (!isValid) return null;
+
     // Decode payload
-    const payload = JSON.parse(atob(payloadB64.replace(/[-_]/g, (c) => c === '-' ? '+' : '/')))
-    
+    const payload = JSON.parse(
+      atob(payloadB64.replace(/[-_]/g, (c) => c === "-" ? "+" : "/")),
+    );
+
     // Check expiration
     if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      return null
+      return null;
     }
-    
-    return payload
+
+    return payload;
   } catch {
-    return null
+    return null;
   }
 }
 
 export function authRoutes(db: Database) {
-  const app = new Hono()
+  const app = new Hono();
 
   // Register a new device
-  app.post('/register-device', async (c: any) => {
+  app.post("/register-device", async (c) => {
     try {
-      const body = await c.req.json()
-      const { deviceName, publicKey, secret } = body
+      const body = await c.req.json();
+      const { deviceName, publicKey, secret } = body;
 
       // Verify shared secret
       if (secret !== sharedSecret) {
-        return c.json({ error: 'Invalid shared secret' }, 401)
+        return c.json({ error: "Invalid shared secret" }, 401);
       }
 
       if (!deviceName || !publicKey) {
-        return c.json({ error: 'Device name and public key are required' }, 400)
+        return c.json(
+          { error: "Device name and public key are required" },
+          400,
+        );
       }
 
       // Generate device ID
-      const deviceId = crypto.randomUUID()
-      const now = Date.now()
+      const deviceId = crypto.randomUUID();
+      const now = Date.now();
 
       const device: Device = {
         deviceId,
@@ -95,112 +125,120 @@ export function authRoutes(db: Database) {
         publicKey,
         createdAt: now,
         lastSeen: now,
-      }
+      };
 
       // Register device in database
-      console.log('Registering device:', device)
-      db.registerDevice(device)
-      console.log('Device registered successfully')
+      console.log("Registering device:", device);
+      db.registerDevice(device);
+      console.log("Device registered successfully");
 
       // Generate JWT token
-      console.log('Creating JWT token for device:', deviceId)
+      console.log("Creating JWT token for device:", deviceId);
       const token = await createSimpleJWT({
         deviceId,
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
         iat: Math.floor(Date.now() / 1000),
-      }, jwtSecret)
-      console.log('JWT token created successfully')
+      }, jwtSecret);
+      console.log("JWT token created successfully");
 
       return c.json({
         deviceId,
         token,
         expiresIn: 24 * 60 * 60, // 24 hours in seconds
-      })
+      });
     } catch (error) {
-      console.error('Device registration error:', error)
+      console.error("Device registration error:", error);
       if (error instanceof Error) {
-        console.error('Error stack:', error.stack)
-        console.error('Error message:', error.message)
-        return c.json({ 
-          error: 'Registration failed', 
+        console.error("Error stack:", error.stack);
+        console.error("Error message:", error.message);
+        return c.json({
+          error: "Registration failed",
           details: error.message,
-          type: error.constructor.name 
-        }, 500)
+          type: error.constructor.name,
+        }, 500);
       } else {
-        console.error('Unknown error type:', typeof error)
-        return c.json({ 
-          error: 'Registration failed', 
-          details: 'Unknown error occurred',
-          type: 'UnknownError' 
-        }, 500)
+        console.error("Unknown error type:", typeof error);
+        return c.json({
+          error: "Registration failed",
+          details: "Unknown error occurred",
+          type: "UnknownError",
+        }, 500);
       }
     }
-  })
+  });
 
   // Refresh token
-  app.post('/refresh-token', async (c) => {
+  app.post("/refresh-token", async (c) => {
     try {
-      const authHeader = c.req.header('Authorization')
-      if (!authHeader?.startsWith('Bearer ')) {
-        return c.json({ error: 'Missing or invalid authorization header' }, 401)
-      }    const token = authHeader.slice(7)
-    const payload = await verifySimpleJWT(token, jwtSecret)
-    
-    if (!payload || !payload.deviceId) {
-      return c.json({ error: 'Invalid token' }, 401)
-    }
+      const authHeader = c.req.header("Authorization");
+      if (!authHeader?.startsWith("Bearer ")) {
+        return c.json(
+          { error: "Missing or invalid authorization header" },
+          401,
+        );
+      }
+
+      const token = authHeader.slice(7);
+      const payload = await verifySimpleJWT(token, jwtSecret);
+
+      if (!payload || !payload.deviceId) {
+        return c.json({ error: "Invalid token" }, 401);
+      }
 
       // Verify device exists
-      const device = db.getDevice(payload.deviceId as string)
+      const device = db.getDevice(payload.deviceId as string);
       if (!device) {
-        return c.json({ error: 'Device not found' }, 404)
+        return c.json({ error: "Device not found" }, 404);
       }
 
       // Update last seen
-      db.updateDeviceLastSeen(payload.deviceId as string)
+      db.updateDeviceLastSeen(payload.deviceId as string);
 
       // Generate new token
       const newToken = await createSimpleJWT({
         deviceId: payload.deviceId as string,
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
         iat: Math.floor(Date.now() / 1000),
-      }, jwtSecret)
+      }, jwtSecret);
 
       return c.json({
         token: newToken,
         expiresIn: 24 * 60 * 60,
-      })
+      });
     } catch (error) {
-      console.error('Token refresh error:', error)
-      return c.json({ error: 'Token refresh failed' }, 401)
+      console.error("Token refresh error:", error);
+      return c.json({ error: "Token refresh failed" }, 401);
     }
-  })
+  });
 
-  return app
+  return app;
 }
 
 // Middleware to verify JWT tokens
-export async function authMiddleware(c: any, next: () => Promise<void>) {
+export async function authMiddleware(c: Context, next: () => Promise<void>) {
   try {
-    const authHeader = c.req.header('Authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return c.json({ error: 'Missing or invalid authorization header' }, 401)
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return c.json(
+        { error: "Missing or invalid authorization header" },
+        401,
+      );
     }
 
-    const token = authHeader.slice(7)
-    const payload = await verifySimpleJWT(token, jwtSecret)
-    
+    const token = authHeader.slice(7);
+    const payload = await verifySimpleJWT(token, jwtSecret);
+
     if (!payload || !payload.deviceId) {
-      return c.json({ error: 'Authentication failed' }, 401)
+      return c.json({ error: "Authentication failed" }, 401);
     }
-    
+
     // Add device info to context
-    c.set('deviceId', payload.deviceId)
-    c.set('authPayload', payload)
-    
-    await next()
+    c.set("deviceId", payload.deviceId as string);
+    c.set("authPayload", payload as { deviceId: string; exp: number; iat: number; });
+
+    await next();
   } catch (error) {
-    console.error('Authentication failed:', error)
-    return c.json({ error: 'Authentication failed' }, 401)
+    console.error("Authentication failed:", error);
+    return c.json({ error: "Authentication failed" }, 401);
   }
 }

@@ -15,7 +15,7 @@ export interface SyncEvent {
   eventType: 'CREATE' | 'UPDATE' | 'DELETE'
   entityType: 'history' | 'page'
   entityId: string
-  data: Record<string, any>
+  data: Record<string, unknown>
   checksum: string
 }
 
@@ -35,7 +35,7 @@ export interface Page {
   url: string
   title?: string
   favicon?: string
-  metadata: Record<string, any>
+  metadata: Record<string, unknown>
   lastUpdate: number
   createdAt: number
   updatedAt: number
@@ -56,6 +56,6 @@ export interface AuthToken {
 
 export interface WSMessage {
   type: 'sync_event' | 'sync_request' | 'sync_batch' | 'ping' | 'pong'
-  data?: any
+  data?: unknown
   timestamp: number
 }

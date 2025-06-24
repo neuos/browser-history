@@ -1,182 +1,175 @@
 # History Sync Backend
 
-A Deno-based backend server for synchronizing browser history across multiple devices.
+A modern Deno-based backend server for cross-device browser history synchronization using Hono v4.8.2 and SQLite.
 
 ## Features
 
-- **Device-based Authentication**: Simple JWT-based auth for personal use
-- **Real-time Sync**: WebSocket support for instant updates
-- **Event Sourcing**: All changes tracked as events for robust sync
-- **SQLite Database**: Lightweight, file-based storage
-- **Docker Support**: Easy deployment with Docker Compose
+- **Hono v4.8.2** - Fast, lightweight web framework
+- **SQLite** - Using Deno's built-in `node:sqlite` module
+- **WebSocket** - Real-time synchronization between devices
+- **JWT Authentication** - Secure device authentication
+- **Event Sourcing** - Full history tracking with sync events
+- **TypeScript** - Full type safety throughout
+
+## Project Structure
+
+```
+src/
+├── main.ts                 # Application entry point
+├── types/
+│   ├── index.ts           # Type definitions
+│   └── hono.d.ts          # Hono context extensions
+├── database/
+│   └── database.ts        # SQLite database operations
+├── routes/
+│   ├── auth.ts            # Authentication endpoints
+│   ├── sync.ts            # Sync endpoints
+│   ├── history.ts         # History endpoints
+│   └── devices.ts         # Device management
+├── websocket/
+│   └── manager.ts         # WebSocket connection management
+└── scripts/
+    └── migrate.ts         # Database migration script
+```
 
 ## Quick Start
 
-### Development
+### Prerequisites
 
-1. **Install Deno** (if not already installed):
+- [Deno](https://deno.land/) v2.2 or later
+
+### Installation & Setup
+
+1. Clone and navigate to the project:
    ```bash
-   curl -fsSL https://deno.land/install.sh | sh
+   cd backend
    ```
 
-2. **Set up environment**:
+2. Initialize the database:
    ```bash
-   cp .env.example .env.local
-   # Edit .env.local with your secrets
+   deno task db:migrate
    ```
 
-3. **Run the server**:
+3. Start the development server:
    ```bash
    deno task dev
    ```
 
-The server will start on `http://localhost:8000`
-
-### Production with Docker Compose
-
-1. **Create environment file**:
+   Or start the production server:
    ```bash
-   cp .env.example .env
-   # Edit .env with your production secrets
+   deno task start
    ```
 
-2. **Start the services**:
-   ```bash
-   docker-compose up -d
-   ```
+The server will start on `http://localhost:8000` by default.
 
-3. **Check status**:
-   ```bash
-   docker-compose logs -f
-   curl http://localhost:8000/health
-   ```
+## Available Scripts
+
+- `deno task dev` - Start development server with file watching
+- `deno task start` - Start production server
+- `deno task db:migrate` - Initialize/migrate database
+- `deno task test` - Run unit tests
+- `deno task test:integration` - Run integration tests (requires server to be running)
+
+## Testing
+
+The project includes both unit tests and integration tests:
+
+### Unit Tests
+Run the unit tests with:
+```bash
+deno task test
+```
+
+These test the database operations and core functionality in isolation.
+
+### Integration Tests
+Run the integration tests with:
+```bash
+# First, start the server
+deno task start
+
+# Then in another terminal, run the integration tests
+deno task test:integration
+```
+
+The integration tests verify the complete API functionality by making HTTP requests to the running server.
+
+## Docker Support
+
+The project includes Docker support for easy deployment:
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Or use the start script which handles both Deno and Docker
+./start.sh
+```
 
 ## API Endpoints
 
+### Health Check
+- `GET /health` - Server health status
+
 ### Authentication
 - `POST /auth/register-device` - Register a new device
-- `POST /auth/refresh-token` - Refresh JWT token
+- `POST /auth/refresh-token` - Refresh authentication token
 
 ### Sync
-- `GET /sync/events?since=timestamp` - Get sync events
+- `GET /sync/events` - Get sync events since timestamp
 - `POST /sync/events` - Submit sync events
-- `GET /sync/state/:deviceId` - Get sync state
+- `GET /sync/state/:deviceId` - Get sync state for device
 
-### Data
+### History
 - `GET /history` - Get history entries
-- `GET /devices` - Get registered devices
-- `DELETE /devices/:deviceId` - Remove device
+
+### Devices
+- `GET /devices` - Get all registered devices
+- `DELETE /devices/:deviceId` - Delete a device
 
 ### WebSocket
 - `GET /ws` - WebSocket endpoint for real-time sync
 
-## Device Setup
+## Environment Variables
 
-1. **Generate shared secret** (use this in all your browser extensions):
-   ```bash
-   openssl rand -hex 32
-   ```
-
-2. **Register your first device**:
-   ```bash
-   curl -X POST http://localhost:8000/auth/register-device \
-     -H "Content-Type: application/json" \
-     -d '{
-       "deviceName": "My Laptop", 
-       "publicKey": "dummy-key-for-now",
-       "secret": "your-shared-secret-here"
-     }'
-   ```
-
-3. **Use the returned JWT token** in your browser extension.
-
-## Database
-
-The SQLite database is stored in `./data/history.db`. It contains:
-
-- **devices** - Registered devices
-- **sync_events** - All sync events (event sourcing)
-- **history_nodes** - Current state of history nodes
-- **pages** - Current state of page metadata
-- **sync_state** - Per-device sync state
-
-## Configuration
-
-Environment variables:
-
-- `SHARED_SECRET` - Secret for device registration
-- `JWT_SECRET` - Secret for signing JWT tokens
-- `DATABASE_PATH` - Path to SQLite database
 - `PORT` - Server port (default: 8000)
 - `HOST` - Server host (default: 0.0.0.0)
+- `SHARED_SECRET` - Secret for device registration
+- `JWT_SECRET` - Secret for JWT token signing
+- `DATABASE_PATH` - SQLite database file path (default: ./data/history.db)
 - `CORS_ORIGIN` - CORS origin (default: *)
 
-## Security Notes
+## Database Schema
 
-Since this is for personal use:
+The backend uses SQLite with the following tables:
 
-- Uses simple shared secret for device registration
-- No user accounts - all devices have full access
-- HTTPS strongly recommended for production
-- Change default secrets in production
-- Consider firewall rules to restrict access
-
-## Backup
-
-The SQLite database file contains all your data. Back it up regularly:
-
-```bash
-# Simple file copy
-cp ./data/history.db ./data/history.db.backup
-
-# Or use SQLite backup command
-sqlite3 ./data/history.db ".backup ./data/history.db.backup"
-```
+- `devices` - Registered devices
+- `sync_events` - Event sourcing log
+- `history_nodes` - Current history state
+- `pages` - Page metadata
+- `sync_state` - Device sync state tracking
 
 ## Development
 
-### Project Structure
-```
-backend/
-├── src/
-│   ├── main.ts              # Server entry point
-│   ├── types/               # TypeScript interfaces
-│   ├── database/            # Database layer
-│   ├── routes/              # API routes
-│   ├── websocket/           # WebSocket manager
-│   └── scripts/             # Utility scripts
-├── Dockerfile
-├── docker-compose.yml
-└── deno.json
-```
+The project uses:
 
-### Available Tasks
-```bash
-deno task dev          # Development server with watch
-deno task start        # Production server
-deno task db:migrate   # Run database migrations
-```
+- **Deno** for runtime and package management
+- **Hono** for HTTP server and routing
+- **SQLite** for data persistence
+- **WebSocket** for real-time communication
+- **TypeScript** for type safety
 
-## Troubleshooting
+All dependencies are managed through Deno's built-in package manager with JSR imports.
 
-### Database Issues
-```bash
-# Check database file
-ls -la ./data/
-sqlite3 ./data/history.db ".tables"
+## Migration from Old Backend
 
-# Reset database
-rm ./data/history.db
-deno task db:migrate
-```
+This is a complete rewrite of the backend using:
 
-### Docker Issues
-```bash
-# Check logs
-docker-compose logs history-sync
+- ✅ Hono v4.8.2 (latest stable)
+- ✅ Deno's built-in `node:sqlite` (no external SQLite dependencies)
+- ✅ Modern TypeScript with full type safety
+- ✅ Proper Hono context variable typing
+- ✅ Updated middleware patterns
+- ✅ Clean project structure following Deno best practices
 
-# Rebuild
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
-```
+The API endpoints remain compatible with existing frontend clients.

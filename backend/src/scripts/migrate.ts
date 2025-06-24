@@ -1,10 +1,18 @@
-import { Database } from '../database/database.ts'
+#!/usr/bin/env deno run --allow-all
 
-console.log('🔄 Running database migrations...')
+/**
+ * Database migration script
+ * This script initializes the database with the required tables
+ */
 
-const db = new Database()
-await db.init()
+import { Database } from "../database/database.ts";
 
-console.log('✅ Database migrations completed!')
+console.log("🔄 Starting database migration...");
 
-db.close()
+const db = new Database();
+db.init();
+
+console.log("✅ Database migration completed successfully!");
+console.log("📊 Database is ready for use.");
+
+db.close();
