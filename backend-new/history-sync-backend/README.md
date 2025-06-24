@@ -67,6 +67,44 @@ The server will start on `http://localhost:8000` by default.
 - `deno task dev` - Start development server with file watching
 - `deno task start` - Start production server
 - `deno task db:migrate` - Initialize/migrate database
+- `deno task test` - Run unit tests
+- `deno task test:integration` - Run integration tests (requires server to be running)
+
+## Testing
+
+The project includes both unit tests and integration tests:
+
+### Unit Tests
+Run the unit tests with:
+```bash
+deno task test
+```
+
+These test the database operations and core functionality in isolation.
+
+### Integration Tests
+Run the integration tests with:
+```bash
+# First, start the server
+deno task start
+
+# Then in another terminal, run the integration tests
+deno task test:integration
+```
+
+The integration tests verify the complete API functionality by making HTTP requests to the running server.
+
+## Docker Support
+
+The project includes Docker support for easy deployment:
+
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
+
+# Or use the start script which handles both Deno and Docker
+./start.sh
+```
 
 ## API Endpoints
 

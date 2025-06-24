@@ -10,7 +10,9 @@
   "tasks": {
     "dev": "deno run --allow-all --watch src/main.ts",
     "start": "deno run --allow-all src/main.ts",
-    "db:migrate": "deno run --allow-all src/scripts/migrate.ts"
+    "db:migrate": "deno run --allow-all src/scripts/migrate.ts",
+    "test": "deno test --allow-all src/tests/",
+    "test:integration": "./test.sh"
   },
   "compilerOptions": {
     "jsx": "precompile",
