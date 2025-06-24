@@ -1,8 +1,57 @@
-import { Database as SqliteDb } from 'sqlite3'
+import { DatabaseSync } from 'node:sqlite'
 import type { Device, SyncEvent, HistoryNode, Page, SyncState } from '../types/index.ts'
 
+// Database row types
+type DeviceRow = {
+  device_id: string
+  device_name: string
+  public_key: string
+  created_at: number
+  last_seen: number
+}
+
+type SyncEventRow = {
+  id: string
+  device_id: string
+  timestamp: number
+  event_type: string
+  entity_type: string
+  entity_id: string
+  data: string
+  checksum: string
+}
+
+type HistoryNodeRow = {
+  id: string
+  device_id: string
+  url: string
+  tab_id: number
+  timestamp: number
+  navigation_source_id: string | null
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+}
+
+type PageRow = {
+  url: string
+  title: string | null
+  favicon: string | null
+  metadata: string
+  last_update: number
+  created_at: number
+  updated_at: number
+  deleted_at: number | null
+}
+
+type SyncStateRow = {
+  device_id: string
+  last_sync_timestamp: number
+  sync_vector: string
+}
+
 export class Database {
-  private db: SqliteDb
+  private db: DatabaseSync
 
   constructor(path?: string) {
     const dbPath = path || Deno.env.get('DATABASE_PATH') || './data/history.db'
@@ -16,7 +65,7 @@ export class Database {
       }
     }
     
-    this.db = new SqliteDb(dbPath)
+    this.db = new DatabaseSync(dbPath)
     console.log(`📁 Database initialized: ${dbPath}`)
   }
 
@@ -48,11 +97,11 @@ export class Database {
         entity_id TEXT NOT NULL,
         data TEXT NOT NULL,
         checksum TEXT NOT NULL,
-        FOREIGN KEY (device_id) REFERENCES devices (device_id)
+        FOREIGN KEY (device_id) REFERENCES devices(device_id)
       )
     `)
 
-    // History nodes table
+    // Current state: History nodes
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS history_nodes (
         id TEXT PRIMARY KEY,
@@ -64,11 +113,11 @@ export class Database {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
         deleted_at INTEGER,
-        FOREIGN KEY (device_id) REFERENCES devices (device_id)
+        FOREIGN KEY (device_id) REFERENCES devices(device_id)
       )
     `)
 
-    // Pages table (for SEO metadata)
+    // Current state: Pages
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pages (
         url TEXT PRIMARY KEY,
@@ -82,95 +131,81 @@ export class Database {
       )
     `)
 
-    // Sync state table (for conflict resolution)
+    // Sync state tracking
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS sync_state (
         device_id TEXT PRIMARY KEY,
         last_sync_timestamp INTEGER NOT NULL,
         sync_vector TEXT NOT NULL DEFAULT '{}',
-        FOREIGN KEY (device_id) REFERENCES devices (device_id)
+        FOREIGN KEY (device_id) REFERENCES devices(device_id)
       )
     `)
 
-    // Create indexes for better performance
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_events_timestamp ON sync_events (timestamp)`)
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_sync_events_device ON sync_events (device_id)`)
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_history_nodes_device ON history_nodes (device_id)`)
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_history_nodes_timestamp ON history_nodes (timestamp)`)
-    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_history_nodes_url ON history_nodes (url)`)
+    // Indexes for performance
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_sync_events_timestamp ON sync_events(timestamp)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_sync_events_device ON sync_events(device_id)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history_nodes(timestamp)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_history_device ON history_nodes(device_id)')
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_history_url ON history_nodes(url)')
   }
 
   // Device operations
   registerDevice(device: Device): void {
-    const stmt = this.db.prepare(`
-      INSERT INTO devices (device_id, device_name, public_key, created_at, last_seen)
+    this.db.prepare(`
+      INSERT OR REPLACE INTO devices (device_id, device_name, public_key, created_at, last_seen)
       VALUES (?, ?, ?, ?, ?)
-    `)
-    stmt.run([
-      device.deviceId,
-      device.deviceName,
-      device.publicKey,
-      device.createdAt,
-      device.lastSeen
-    ])
+    `).run(device.deviceId, device.deviceName, device.publicKey, device.createdAt, device.lastSeen)
   }
 
   getDevice(deviceId: string): Device | undefined {
-    const stmt = this.db.prepare(`
+    const row = this.db.prepare(`
       SELECT device_id, device_name, public_key, created_at, last_seen
       FROM devices WHERE device_id = ?
-    `)
-    const row = stmt.get([deviceId])
+    `).get(deviceId) as DeviceRow | undefined
     
     if (!row) return undefined
     
     return {
-      deviceId: row[0] as string,
-      deviceName: row[1] as string,
-      publicKey: row[2] as string,
-      createdAt: row[3] as number,
-      lastSeen: row[4] as number,
+      deviceId: row.device_id,
+      deviceName: row.device_name,
+      publicKey: row.public_key,
+      createdAt: row.created_at,
+      lastSeen: row.last_seen,
     }
   }
 
   getAllDevices(): Device[] {
-    const stmt = this.db.prepare(`
+    const rows = this.db.prepare(`
       SELECT device_id, device_name, public_key, created_at, last_seen
-      FROM devices ORDER BY created_at DESC
-    `)
-    const rows = stmt.all()
+      FROM devices ORDER BY last_seen DESC
+    `).all() as DeviceRow[]
     
-    return rows.map((row: unknown[]) => ({
-      deviceId: row[0] as string,
-      deviceName: row[1] as string,
-      publicKey: row[2] as string,
-      createdAt: row[3] as number,
-      lastSeen: row[4] as number,
+    return rows.map((row: DeviceRow) => ({
+      deviceId: row.device_id,
+      deviceName: row.device_name,
+      publicKey: row.public_key,
+      createdAt: row.created_at,
+      lastSeen: row.last_seen,
     }))
   }
 
   updateDeviceLastSeen(deviceId: string): void {
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       UPDATE devices SET last_seen = ? WHERE device_id = ?
-    `)
-    stmt.run([Date.now(), deviceId])
+    `).run(Date.now(), deviceId)
   }
 
   deleteDevice(deviceId: string): void {
-    const deleteDeviceStmt = this.db.prepare('DELETE FROM devices WHERE device_id = ?')
-    const deleteSyncStateStmt = this.db.prepare('DELETE FROM sync_state WHERE device_id = ?')
-    
-    deleteDeviceStmt.run([deviceId])
-    deleteSyncStateStmt.run([deviceId])
+    this.db.prepare('DELETE FROM devices WHERE device_id = ?').run(deviceId)
+    this.db.prepare('DELETE FROM sync_state WHERE device_id = ?').run(deviceId)
   }
 
   // Sync events operations
   addSyncEvent(event: SyncEvent): void {
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       INSERT INTO sync_events (id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run([
+    `).run(
       event.id,
       event.deviceId,
       event.timestamp,
@@ -179,12 +214,12 @@ export class Database {
       event.entityId,
       JSON.stringify(event.data),
       event.checksum
-    ])
+    )
   }
 
   getSyncEvents(since: number, deviceId?: string): SyncEvent[] {
     let stmt
-    let params: unknown[]
+    let rows: SyncEventRow[]
     
     if (deviceId) {
       stmt = this.db.prepare(`
@@ -192,37 +227,35 @@ export class Database {
         FROM sync_events WHERE timestamp > ? AND device_id != ?
         ORDER BY timestamp ASC
       `)
-      params = [since, deviceId]
+      rows = stmt.all(since, deviceId) as SyncEventRow[]
     } else {
       stmt = this.db.prepare(`
         SELECT id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum
         FROM sync_events WHERE timestamp > ?
         ORDER BY timestamp ASC
       `)
-      params = [since]
+      rows = stmt.all(since) as SyncEventRow[]
     }
     
-    const rows = stmt.all(params)
-    
-    return rows.map((row: unknown[]) => ({
-      id: row[0] as string,
-      deviceId: row[1] as string,
-      timestamp: row[2] as number,
-      eventType: row[3] as 'CREATE' | 'UPDATE' | 'DELETE',
-      entityType: row[4] as 'history' | 'page',
-      entityId: row[5] as string,
-      data: JSON.parse(row[6] as string),
-      checksum: row[7] as string,
+    return rows.map((row: SyncEventRow) => ({
+      id: row.id as string,
+      deviceId: row.device_id as string,
+      timestamp: row.timestamp as number,
+      eventType: row.event_type as 'CREATE' | 'UPDATE' | 'DELETE',
+      entityType: row.entity_type as 'history' | 'page',
+      entityId: row.entity_id as string,
+      data: JSON.parse(row.data as string),
+      checksum: row.checksum as string,
     }))
   }
 
   // History operations
-  addHistoryNode(node: HistoryNode): void {
-    const stmt = this.db.prepare(`
-      INSERT OR REPLACE INTO history_nodes (id, device_id, url, tab_id, timestamp, navigation_source_id, created_at, updated_at, deleted_at)
+  upsertHistoryNode(node: HistoryNode): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO history_nodes 
+      (id, device_id, url, tab_id, timestamp, navigation_source_id, created_at, updated_at, deleted_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run([
+    `).run(
       node.id,
       node.deviceId,
       node.url,
@@ -232,17 +265,12 @@ export class Database {
       node.createdAt,
       node.updatedAt,
       node.deletedAt || null
-    ])
-  }
-
-  upsertHistoryNode(node: HistoryNode): void {
-    // Alias for addHistoryNode since we use INSERT OR REPLACE
-    this.addHistoryNode(node)
+    )
   }
 
   getHistoryNodes(deviceId?: string, limit = 100, offset = 0): HistoryNode[] {
     let stmt
-    let params: unknown[]
+    let rows
     
     if (deviceId) {
       stmt = this.db.prepare(`
@@ -250,38 +278,35 @@ export class Database {
         FROM history_nodes WHERE deleted_at IS NULL AND device_id = ?
         ORDER BY timestamp DESC LIMIT ? OFFSET ?
       `)
-      params = [deviceId, limit, offset]
+      rows = stmt.all(deviceId, limit, offset)
     } else {
       stmt = this.db.prepare(`
         SELECT id, device_id, url, tab_id, timestamp, navigation_source_id, created_at, updated_at, deleted_at
         FROM history_nodes WHERE deleted_at IS NULL
         ORDER BY timestamp DESC LIMIT ? OFFSET ?
       `)
-      params = [limit, offset]
+      rows = stmt.all(limit, offset)
     }
     
-    const rows = stmt.all(params)
-    
-    return rows.map((row: unknown[]) => ({
-      id: row[0] as string,
-      deviceId: row[1] as string,
-      url: row[2] as string,
-      tabId: row[3] as number,
-      timestamp: row[4] as number,
-      navigationSourceId: row[5] as string | undefined,
-      createdAt: row[6] as number,
-      updatedAt: row[7] as number,
-      deletedAt: row[8] as number | undefined,
+    return rows.map((row: any) => ({
+      id: row.id as string,
+      deviceId: row.device_id as string,
+      url: row.url as string,
+      tabId: row.tab_id as number,
+      timestamp: row.timestamp as number,
+      navigationSourceId: row.navigation_source_id as string | undefined,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      deletedAt: row.deleted_at as number | undefined,
     }))
   }
 
   // Page operations
   upsertPage(page: Page): void {
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       INSERT OR REPLACE INTO pages (url, title, favicon, metadata, last_update, created_at, updated_at, deleted_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-    stmt.run([
+    `).run(
       page.url,
       page.title || null,
       page.favicon || null,
@@ -290,27 +315,27 @@ export class Database {
       page.createdAt,
       page.updatedAt,
       page.deletedAt || null
-    ])
+    )
   }
 
   getPage(url: string): Page | undefined {
-    const stmt = this.db.prepare(`
+    const row = this.db.prepare(`
       SELECT url, title, favicon, metadata, last_update, created_at, updated_at, deleted_at
       FROM pages WHERE url = ? AND deleted_at IS NULL
-    `)
-    const row = stmt.get([url])
+    `).get(url)
     
     if (!row) return undefined
     
+    const r = row as any
     return {
-      url: (row as unknown[])[0] as string,
-      title: (row as unknown[])[1] as string | undefined,
-      favicon: (row as unknown[])[2] as string | undefined,
-      metadata: JSON.parse((row as unknown[])[3] as string),
-      lastUpdate: (row as unknown[])[4] as number,
-      createdAt: (row as unknown[])[5] as number,
-      updatedAt: (row as unknown[])[6] as number,
-      deletedAt: (row as unknown[])[7] as number | undefined,
+      url: r.url as string,
+      title: r.title as string | undefined,
+      favicon: r.favicon as string | undefined,
+      metadata: JSON.parse(r.metadata as string),
+      lastUpdate: r.last_update as number,
+      createdAt: r.created_at as number,
+      updatedAt: r.updated_at as number,
+      deletedAt: r.deleted_at as number | undefined,
     }
   }
 
@@ -322,42 +347,41 @@ export class Database {
       SELECT url, title, favicon, metadata, last_update, created_at, updated_at, deleted_at
       FROM pages WHERE url IN (${placeholders}) AND deleted_at IS NULL
     `)
-    const rows = stmt.all(urls)
+    const rows = stmt.all(...urls)
     
-    return rows.map((row: unknown[]) => ({
-      url: row[0] as string,
-      title: row[1] as string | undefined,
-      favicon: row[2] as string | undefined,
-      metadata: JSON.parse(row[3] as string),
-      lastUpdate: row[4] as number,
-      createdAt: row[5] as number,
-      updatedAt: row[6] as number,
-      deletedAt: row[7] as number | undefined,
+    return rows.map((row: any) => ({
+      url: row.url as string,
+      title: row.title as string | undefined,
+      favicon: row.favicon as string | undefined,
+      metadata: JSON.parse(row.metadata as string),
+      lastUpdate: row.last_update as number,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      deletedAt: row.deleted_at as number | undefined,
     }))
   }
 
   // Sync state operations
   updateSyncState(state: SyncState): void {
-    const stmt = this.db.prepare(`
+    this.db.prepare(`
       INSERT OR REPLACE INTO sync_state (device_id, last_sync_timestamp, sync_vector)
       VALUES (?, ?, ?)
-    `)
-    stmt.run([state.deviceId, state.lastSyncTimestamp, JSON.stringify(state.syncVector)])
+    `).run(state.deviceId, state.lastSyncTimestamp, JSON.stringify(state.syncVector))
   }
 
   getSyncState(deviceId: string): SyncState | undefined {
-    const stmt = this.db.prepare(`
+    const row = this.db.prepare(`
       SELECT device_id, last_sync_timestamp, sync_vector
       FROM sync_state WHERE device_id = ?
-    `)
-    const row = stmt.get([deviceId])
+    `).get(deviceId)
     
     if (!row) return undefined
     
+    const r = row as any
     return {
-      deviceId: (row as unknown[])[0] as string,
-      lastSyncTimestamp: (row as unknown[])[1] as number,
-      syncVector: JSON.parse((row as unknown[])[2] as string),
+      deviceId: r.device_id as string,
+      lastSyncTimestamp: r.last_sync_timestamp as number,
+      syncVector: JSON.parse(r.sync_vector as string),
     }
   }
 

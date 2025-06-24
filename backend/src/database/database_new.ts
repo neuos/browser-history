@@ -20,7 +20,7 @@ export class Database {
     console.log(`📁 Database initialized: ${dbPath}`)
   }
 
-  init() {
+  async init() {
     this.createTables()
     console.log('✅ Database tables created/verified')
   }
@@ -233,11 +233,6 @@ export class Database {
       node.updatedAt,
       node.deletedAt || null
     ])
-  }
-
-  upsertHistoryNode(node: HistoryNode): void {
-    // Alias for addHistoryNode since we use INSERT OR REPLACE
-    this.addHistoryNode(node)
   }
 
   getHistoryNodes(deviceId?: string, limit = 100, offset = 0): HistoryNode[] {

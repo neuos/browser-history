@@ -1,4 +1,4 @@
-import { Hono } from 'https://deno.land/x/hono@v3.12.0/mod.ts'
+import { Hono } from 'hono'
 import type { Database } from '../database/database.ts'
 import type { SyncEvent } from '../types/index.ts'
 import type { WebSocketManager } from '../websocket/manager.ts'
@@ -131,16 +131,25 @@ async function applySyncEvent(db: Database, event: SyncEvent) {
   try {
     if (event.entityType === 'history') {
       const historyNode = {
-        ...event.data,
         id: event.entityId,
+        deviceId: event.data.deviceId || event.deviceId,
+        url: event.data.url,
+        tabId: event.data.tabId,
+        timestamp: event.data.timestamp,
+        navigationSourceId: event.data.navigationSourceId,
+        createdAt: event.data.createdAt || now,
         updatedAt: now,
         deletedAt: event.eventType === 'DELETE' ? now : undefined
       }
       db.upsertHistoryNode(historyNode)
     } else if (event.entityType === 'page') {
       const page = {
-        ...event.data,
         url: event.entityId,
+        title: event.data.title,
+        favicon: event.data.favicon,
+        metadata: event.data.metadata || {},
+        lastUpdate: event.data.lastUpdate || now,
+        createdAt: event.data.createdAt || now,
         updatedAt: now,
         deletedAt: event.eventType === 'DELETE' ? now : undefined
       }

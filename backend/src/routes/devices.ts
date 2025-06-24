@@ -1,4 +1,4 @@
-import { Hono } from 'https://deno.land/x/hono@v3.12.0/mod.ts'
+import { Hono } from 'hono'
 import type { Database } from '../database/database.ts'
 import { authMiddleware } from './auth.ts'
 

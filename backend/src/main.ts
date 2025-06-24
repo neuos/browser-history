@@ -1,7 +1,7 @@
-import { Hono } from 'https://deno.land/x/hono@v3.12.0/mod.ts'
-import { cors } from 'https://deno.land/x/hono@v3.12.0/middleware.ts'
-import { logger } from 'https://deno.land/x/hono@v3.12.0/middleware.ts'
-import { serveStatic } from 'https://deno.land/x/hono@v3.12.0/middleware.ts'
+// deno-lint-ignore-file no-explicit-any
+import { Hono } from 'hono'
+import { cors } from 'jsr:@hono/hono@^4.8.2/cors'
+import { logger } from 'jsr:@hono/hono@^4.8.2/logger'
 
 import { authRoutes } from './routes/auth.ts'
 import { syncRoutes } from './routes/sync.ts'
@@ -26,7 +26,7 @@ app.use('*', cors({
 }))
 
 // Health check
-app.get('/health', (c) => {
+app.get('/health', (c: any) => {
   return c.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
@@ -41,7 +41,7 @@ app.route('/history', historyRoutes(db))
 app.route('/devices', devicesRoutes(db))
 
 // WebSocket endpoint
-app.get('/ws', async (c) => {
+app.get('/ws', (c: any) => {
   const upgrade = c.req.header('upgrade')
   if (upgrade !== 'websocket') {
     return c.text('Expected websocket', 400)

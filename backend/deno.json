@@ -3,6 +3,11 @@
   "version": "1.0.0",
   "description": "Backend server for cross-device browser history synchronization",
   "type": "module",
+  "imports": {
+    "hono": "jsr:@hono/hono@^4.8.2",
+    "hono/": "jsr:@hono/hono@^4.8.2/",
+    "sqlite3": "https://deno.land/x/sqlite3@0.12.0/mod.ts"
+  },
   "scripts": {
     "dev": "deno run --allow-all --watch src/main.ts",
     "start": "deno run --allow-all src/main.ts",
