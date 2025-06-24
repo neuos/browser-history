@@ -7,12 +7,20 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Extension build output
 .output
 stats.html
 stats-*.json
 .wxt
 web-ext.config.ts
+
+# Backend data
+backend/data/
+backend/.env
+backend/.env.local
 
 # Editor directories and files
 .vscode/*

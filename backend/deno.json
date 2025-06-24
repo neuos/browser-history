@@ -1,0 +1,17 @@
+{
+  "name": "history-sync-backend",
+  "version": "1.0.0",
+  "description": "Backend server for cross-device browser history synchronization",
+  "type": "module",
+  "scripts": {
+    "dev": "deno run --allow-all --watch src/main.ts",
+    "start": "deno run --allow-all src/main.ts",
+    "db:migrate": "deno run --allow-all src/scripts/migrate.ts",
+    "db:seed": "deno run --allow-all src/scripts/seed.ts"
+  },
+  "tasks": {
+    "dev": "deno run --allow-all --watch src/main.ts",
+    "start": "deno run --allow-all src/main.ts",
+    "db:migrate": "deno run --allow-all src/scripts/migrate.ts"
+  }
+}
