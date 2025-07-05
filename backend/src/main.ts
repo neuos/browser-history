@@ -51,14 +51,14 @@ app.route("/history", historyRoutes(db));
 app.route("/devices", devicesRoutes(db));
 
 // Start server with hybrid WebSocket/HTTP handling
-const port = EnvironmentConfig.getNumber("PORT");
+const port = EnvironmentConfig.get("PORT");
 const host = EnvironmentConfig.get("HOST");
 
 console.log(`🚀 History sync server starting on ${host}:${port}`);
 console.log(`📡 WebSocket endpoint available at ws://${host}:${port}/ws`);
 
 // Log the configuration (excluding secrets)
-EnvironmentConfig.getInstance().logConfiguration();
+EnvironmentConfig.logConfiguration();
 
 // Create a hybrid handler that handles WebSocket upgrades and delegates HTTP to Hono
 // Note: Hono's upgradeWebSocket helper is not compatible with Deno.serve, so we handle

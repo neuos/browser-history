@@ -3,25 +3,28 @@
  * This file centralizes all environment variable configuration.
  */
 
-import type { EnvVar } from './env-types.ts';
+import type { EnvVar as _EnvVar } from './env-types.ts';
 
 /**
  * Central definition of all environment variables with their configuration.
  * Each variable must specify:
  * - group: Category for documentation grouping
+ * - type: Expected type ('string' | 'number' | 'boolean'), defaults to 'string'
  * - For required vars: example (no default allowed)
  * - For optional vars: default (example is optional)
  * - isSecret: Optional, defaults to false
  */
-export const ENV_DEFINITIONS: Record<string, EnvVar> = {
+export const ENV_DEFINITIONS = {
   // Required secrets (no defaults for security)
   SHARED_SECRET: { 
     group: "Security",
+    type: "string",
     example: "your-super-secret-key-for-device-registration",
     isSecret: true
   },
   JWT_SECRET: { 
     group: "Security",
+    type: "string",
     example: "your-jwt-signing-secret-key",
     isSecret: true
   },
@@ -29,14 +32,17 @@ export const ENV_DEFINITIONS: Record<string, EnvVar> = {
   // Server configuration with defaults
   PORT: { 
     group: "Server",
+    type: "number",
     default: "8000"
   },
   HOST: { 
     group: "Server",
+    type: "string",
     default: "0.0.0.0"
   },
   CORS_ORIGIN: { 
     group: "Server",
+    type: "string",
     default: "*",
     example: "https://yourdomain.com"
   },
@@ -44,13 +50,7 @@ export const ENV_DEFINITIONS: Record<string, EnvVar> = {
   // Database configuration
   DATABASE_PATH: { 
     group: "Database",
+    type: "string",
     default: "./data/history.db"
   },
-  
-  // Logging configuration
-  LOG_LEVEL: {
-    group: "Logging",
-    default: "info",
-    example: "debug"
-  },
-};
+} as const satisfies Record<string, _EnvVar>;

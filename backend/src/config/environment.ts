@@ -1,9 +1,18 @@
 /**
- * Environment configuration class that centralizes all environment variable
- * definitions, defaults, and validation logic.
+ * Environment configuration class with dynamic approach.
+ * Uses runtime property access with proper type safety at the interface level.
  */
 
 import { ENV_DEFINITIONS } from './env-definitions.ts';
+import type { TypeMap } from './env-types.ts';
+
+// Create mapped type for return types
+type EnvVarReturnTypes = {
+  [K in keyof typeof ENV_DEFINITIONS]: 
+    typeof ENV_DEFINITIONS[K]['type'] extends keyof TypeMap 
+      ? TypeMap[typeof ENV_DEFINITIONS[K]['type']]
+      : string;
+};
 
 export class EnvironmentConfig {
   private static _instance: EnvironmentConfig | null = null;
@@ -15,7 +24,6 @@ export class EnvironmentConfig {
 
   /**
    * Initialize and get the singleton instance of EnvironmentConfig
-   * This should be called after environment variables are loaded
    */
   public static initialize(): EnvironmentConfig {
     if (!EnvironmentConfig._instance) {
@@ -26,7 +34,6 @@ export class EnvironmentConfig {
 
   /**
    * Get the singleton instance of EnvironmentConfig
-   * Throws an error if not initialized
    */
   private static getInstance(): EnvironmentConfig {
     if (!EnvironmentConfig._instance) {
@@ -36,52 +43,30 @@ export class EnvironmentConfig {
   }
 
   /**
-   * Static convenience methods to access configuration directly
-   * These implement the logic directly instead of forwarding to instance methods
+   * Type-safe environment variable access with automatic type conversion
    */
-  public static get(key: keyof typeof ENV_DEFINITIONS): string;
-  public static get<T extends 'string' | 'number' | 'boolean'>(
-    key: keyof typeof ENV_DEFINITIONS, 
-    type: T
-  ): T extends 'string' ? string : T extends 'number' ? number : T extends 'boolean' ? boolean : never;
-  public static get(key: keyof typeof ENV_DEFINITIONS, type?: 'string' | 'number' | 'boolean'): string | number | boolean {
+  public static get<K extends keyof typeof ENV_DEFINITIONS>(key: K): EnvVarReturnTypes[K] {
     const instance = EnvironmentConfig.getInstance();
-    
-    if (type === 'number') {
-      const value = instance._config[key as string];
-      if (value === undefined) {
-        throw new Error(`Environment variable ${String(key)} is not available`);
-      }
+    const value = instance._config[key as string];
+    if (value === undefined) {
+      throw new Error(`Environment variable ${String(key)} is not available`);
+    }
+
+    const definition = ENV_DEFINITIONS[key] as Record<string, unknown>;
+    const expectedType = (definition.type as string);
+
+    if (expectedType === 'number') {
       const parsed = parseInt(value, 10);
       if (isNaN(parsed)) {
         throw new Error(`Environment variable ${String(key)} must be a valid number, got: ${value}`);
       }
-      return parsed;
-    } else if (type === 'boolean') {
-      const value = instance._config[key as string];
-      if (value === undefined) {
-        throw new Error(`Environment variable ${String(key)} is not available`);
-      }
+      return parsed as unknown as EnvVarReturnTypes[K];
+    } else if (expectedType === 'boolean') {
       const lowerValue = value.toLowerCase();
-      return lowerValue === "true" || lowerValue === "1" || lowerValue === "yes";
-    } else if (type === 'string' || type === undefined) {
-      const value = instance._config[key as string];
-      if (value === undefined) {
-        throw new Error(`Environment variable ${String(key)} is not available`);
-      }
-      return value;
-    } else {
-      // This should never be reached due to TypeScript constraints, but adding for runtime safety
-      throw new Error(`Unsupported type: ${type}. Supported types are 'string', 'number', 'boolean'`);
+      return (lowerValue === "true" || lowerValue === "1" || lowerValue === "yes") as unknown as EnvVarReturnTypes[K];
+    } else { // Default to string
+        return value as EnvVarReturnTypes[K];
     }
-  }
-
-  public static getNumber(key: keyof typeof ENV_DEFINITIONS): number {
-    return EnvironmentConfig.get(key, 'number');
-  }
-
-  public static getBoolean(key: keyof typeof ENV_DEFINITIONS): boolean {
-    return EnvironmentConfig.get(key, 'boolean');
   }
 
   /**
@@ -100,8 +85,9 @@ export class EnvironmentConfig {
     console.log("📋 Environment Configuration:");
     
     for (const [key, value] of Object.entries(instance._config)) {
-      const definition = ENV_DEFINITIONS[key];
-      if (definition?.isSecret === true) {
+      // Use bracket notation for dynamic property access
+      const definition = (ENV_DEFINITIONS as Record<string, Record<string, unknown>>)[key];
+      if (definition && definition.isSecret === true) {
         console.log(`   ${key}: ${"*".repeat(8)} (hidden)`);
       } else {
         console.log(`   ${key}: ${value}`);
@@ -116,23 +102,21 @@ export class EnvironmentConfig {
     const config: Record<string, string> = {};
     const missing: string[] = [];
 
-    // Process each environment variable definition
-    for (const [key, definition] of Object.entries(ENV_DEFINITIONS)) {
+    // Convert ENV_DEFINITIONS to entries for dynamic access
+    const envEntries = Object.entries(ENV_DEFINITIONS as Record<string, Record<string, unknown>>);
+    
+    for (const [key, definition] of envEntries) {
       const value = Deno.env.get(key);
       
       if (value !== undefined) {
-        // Environment variable is set
         config[key] = value;
-      } else if (definition.default !== undefined) {
-        // Use default value
+      } else if ('default' in definition && typeof definition.default === 'string') {
         config[key] = definition.default;
-      } else if (definition.default === undefined) {
-        // Required but not set (no default means required)
+      } else {
         missing.push(key);
       }
     }
 
-    // Check for missing required variables
     if (missing.length > 0) {
       this.logMissingVariables(missing);
       Deno.exit(1);
@@ -154,12 +138,12 @@ export class EnvironmentConfig {
     console.error("\nPlease ensure these variables are set in your .env file");
     console.error("Example .env file content:");
     
-    // Show examples for required variables
-    const requiredVars = Object.entries(ENV_DEFINITIONS)
-      .filter(([_, def]) => def.default === undefined);
+    const envEntries = Object.entries(ENV_DEFINITIONS as Record<string, Record<string, unknown>>);
+    const requiredVars = envEntries.filter(([_, def]) => !('default' in def));
     
     requiredVars.forEach(([key, definition]) => {
-      console.error(`${key}=${definition.example}`);
+      const example = 'example' in definition ? definition.example : 'CHANGE_ME';
+      console.error(`${key}=${example}`);
     });
   }
 
@@ -176,33 +160,35 @@ export class EnvironmentConfig {
 
     // Group variables by their group property
     const groupedVars: Record<string, string[]> = {};
+    const envEntries = Object.entries(ENV_DEFINITIONS as Record<string, Record<string, unknown>>);
     
-    for (const [key, def] of Object.entries(ENV_DEFINITIONS)) {
-      if (!groupedVars[def.group]) {
-        groupedVars[def.group] = [];
+    for (const [key, def] of envEntries) {
+      const group = (def.group as string) || 'Other';
+      if (!groupedVars[group]) {
+        groupedVars[group] = [];
       }
-      groupedVars[def.group].push(key);
+      groupedVars[group].push(key);
     }
 
     for (const [group, keys] of Object.entries(groupedVars)) {
       lines.push(`# ${group}`);
       
       keys.forEach(key => {
-        const def = ENV_DEFINITIONS[key];
+        const def = (ENV_DEFINITIONS as Record<string, Record<string, unknown>>)[key];
         if (def) {
           let comment = "";
           let exampleValue = "";
           
-          if (def.default === undefined) {
-            // Required variables must have an example
-            exampleValue = def.example;
+          if (!('default' in def)) {
+            // Required variables
+            exampleValue = ('example' in def ? def.example : 'CHANGE_ME') as string;
             comment = " # Required";
-            if (def.isSecret) {
+            if ('isSecret' in def && def.isSecret) {
               comment += " - Keep this secret!";
             }
           } else {
-            // Optional variables use example if provided, otherwise use default
-            exampleValue = def.example || def.default;
+            // Optional variables
+            exampleValue = ('example' in def ? def.example : def.default) as string;
             comment = ` # Optional (default: ${def.default})`;
           }
           
