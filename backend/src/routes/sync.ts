@@ -33,6 +33,8 @@ export function syncRoutes(db: Database, wsManager: WebSocketManager) {
   // Submit sync events
   app.post("/events", async (c) => {
     try {
+      // Device ID comes from JWT authentication, not request body
+      // This ensures security and prevents device ID spoofing
       const deviceId = c.get("deviceId") as string;
       const body = await c.req.json();
       const { events } = body;
@@ -47,7 +49,7 @@ export function syncRoutes(db: Database, wsManager: WebSocketManager) {
       for (const eventData of events) {
         const event: SyncEvent = {
           id: eventData.id || crypto.randomUUID(),
-          deviceId,
+          deviceId, // Always use the authenticated device ID from JWT
           timestamp: eventData.timestamp || Date.now(),
           eventType: eventData.eventType,
           entityType: eventData.entityType,
@@ -131,21 +133,8 @@ function applySyncEvent(db: Database, event: SyncEvent) {
 
   try {
     if (event.entityType === "history") {
-      const nodeDeviceId = (event.data.deviceId as string) || event.deviceId;
-      
-      // Ensure the device exists in the devices table
-      // If we encounter a device ID in history data that doesn't exist, create a placeholder device
-      const existingDevice = db.getDevice(nodeDeviceId);
-      if (!existingDevice) {
-        console.log(`Creating placeholder device for unknown device ID: ${nodeDeviceId}`);
-        db.registerDevice({
-          deviceId: nodeDeviceId,
-          deviceName: `Unknown Device (${nodeDeviceId.substring(0, 8)})`,
-          publicKey: '', // Placeholder - this will be updated when the actual device registers
-          createdAt: now,
-          lastSeen: now,
-        });
-      }
+      // Always use the authenticated deviceId from JWT, ignore any deviceId in data payload
+      const nodeDeviceId = event.deviceId;
       
       const historyNode = {
         id: event.entityId,

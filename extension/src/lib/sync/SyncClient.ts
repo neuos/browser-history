@@ -285,6 +285,8 @@ export class SyncClient {
       console.log('SyncClient: Sending events to', `${this.config.serverUrl}/sync/events`)
       console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
       
+      // Note: deviceId is NOT sent in the request body - it's provided via JWT in Authorization header
+      // This ensures security and prevents device ID spoofing
       const response = await fetch(`${this.config.serverUrl}/sync/events`, {
         method: 'POST',
         headers: {
@@ -328,11 +330,6 @@ export class SyncClient {
   // Apply incoming sync events
   private async applySyncEvent(event: SyncEvent): Promise<void> {
     try {
-      // Don't apply our own events
-      if (event.deviceId === this.deviceInfo?.deviceId) {
-        return
-      }
-
       console.log('Applying sync event:', event)
       
       // Broadcast to extension components

@@ -8,7 +8,6 @@ export interface SyncConfig {
 
 export interface SyncEvent {
   id: string
-  deviceId?: string
   timestamp: number
   eventType: 'CREATE' | 'UPDATE' | 'DELETE'
   entityType: 'history' | 'page'

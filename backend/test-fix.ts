@@ -7,7 +7,7 @@ console.log('Testing FOREIGN KEY constraint fix...')
 // Initialize database
 const db = new Database('./data/history.db')
 
-// Create a test sync event with an unknown device ID
+// Create a test sync event with a device ID that would be authenticated via JWT
 const testEvent = {
   id: "test-event-123",
   deviceId: "sender-device-456", // This device exists (sender)
@@ -38,26 +38,14 @@ db.registerDevice({
   lastSeen: Date.now()
 })
 
-// Test the applySyncEvent function that should now handle unknown device IDs
+// Test the applySyncEvent function that should now handle authenticated device IDs
 function testApplySyncEvent(db: Database, event: typeof testEvent) {
   const now = Date.now();
 
   try {
     if (event.entityType === "history") {
-      const nodeDeviceId = (event.data.deviceId as string) || event.deviceId;
-      
-      // Ensure the device exists in the devices table
-      const existingDevice = db.getDevice(nodeDeviceId);
-      if (!existingDevice) {
-        console.log(`Creating placeholder device for unknown device ID: ${nodeDeviceId}`);
-        db.registerDevice({
-          deviceId: nodeDeviceId,
-          deviceName: `Unknown Device (${nodeDeviceId.substring(0, 8)})`,
-          publicKey: '',
-          createdAt: now,
-          lastSeen: now,
-        });
-      }
+      // Always use the authenticated deviceId from JWT, ignore any deviceId in data payload
+      const nodeDeviceId = event.deviceId;
       
       const historyNode = {
         id: event.entityId,
@@ -79,7 +67,7 @@ function testApplySyncEvent(db: Database, event: typeof testEvent) {
   }
 }
 
-console.log('Testing sync event with unknown device ID...')
+console.log('Testing sync event with authenticated device ID...')
 testApplySyncEvent(db, testEvent)
 
 // Check if devices were created
