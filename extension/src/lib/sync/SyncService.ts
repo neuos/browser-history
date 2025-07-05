@@ -1,5 +1,5 @@
 import { SyncClient } from './SyncClient'
-import type { SyncEvent } from './types'
+import type { SyncEvent, DeviceInfo } from './types'
 import type { HistoryNode, Page } from '@/lib/HistoryTree/HistoryNode'
 
 export class SyncService {
@@ -16,7 +16,7 @@ export class SyncService {
     try {
       await this.syncClient.loadConfig()
       
-      if (this.syncClient.isConfigured()) {
+      if (await this.syncClient.isConfigured()) {
         await this.syncClient.connect()
       }
 
@@ -49,7 +49,7 @@ export class SyncService {
 
   // History sync
   async syncHistoryNodeCreated(node: HistoryNode): Promise<void> {
-    if (!this.syncClient.isConfigured()) return
+    if (!(await this.syncClient.isConfigured())) return
 
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -73,7 +73,7 @@ export class SyncService {
   }
 
   async syncHistoryNodeUpdated(node: HistoryNode): Promise<void> {
-    if (!this.syncClient.isConfigured()) return
+    if (!(await this.syncClient.isConfigured())) return
 
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -97,7 +97,7 @@ export class SyncService {
 
   // Page sync
   async syncPageCreated(page: Page): Promise<void> {
-    if (!this.syncClient.isConfigured()) return
+    if (!(await this.syncClient.isConfigured())) return
 
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -120,7 +120,7 @@ export class SyncService {
   }
 
   async syncPageUpdated(page: Page): Promise<void> {
-    if (!this.syncClient.isConfigured()) return
+    if (!(await this.syncClient.isConfigured())) return
 
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -157,16 +157,16 @@ export class SyncService {
   }
 
   // Status and management
-  isConfigured(): boolean {
-    return this.syncClient.isConfigured()
+  async isConfigured(): Promise<boolean> {
+    return await this.syncClient.isConfigured()
   }
 
   getStatus() {
     return this.syncClient.getStatus()
   }
 
-  getDeviceInfo() {
-    return this.syncClient.getDeviceInfo()
+  async getDeviceInfo(): Promise<DeviceInfo | null> {
+    return await this.syncClient.getDeviceInfo()
   }
 
   async disconnect(): Promise<void> {
@@ -175,7 +175,7 @@ export class SyncService {
 
   async clearConfiguration(): Promise<void> {
     await browser.storage.local.remove(['syncConfig', 'deviceInfo'])
-    this.syncClient.disconnect()
+    await this.syncClient.clearConfiguration()
   }
 }
 

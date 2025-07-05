@@ -16,17 +16,19 @@
   let setupError = '';
 
   onMount(async () => {
+    // Initialize sync service first to load any existing configuration
+    await syncService.initialize();
     await checkSyncStatus();
     
-    // Set default device name
-    if (!deviceName) {
+    // Set default device name only if not configured
+    if (!isConfigured && !deviceName) {
       deviceName = `${navigator.platform} - ${new Date().toLocaleDateString()}`;
     }
   });
 
   async function checkSyncStatus() {
-    isConfigured = syncService.isConfigured();
-    deviceInfo = syncService.getDeviceInfo();
+    isConfigured = await syncService.isConfigured();
+    deviceInfo = await syncService.getDeviceInfo();
     syncStatus = syncService.getStatus();
   }
 

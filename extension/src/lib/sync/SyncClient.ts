@@ -7,23 +7,28 @@ export class SyncClient {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private eventQueue: SyncEvent[] = []
   private isProcessing = false
+  private isLoaded = false
 
   constructor() {
-    this.loadConfig()
+    // Don't load config in constructor - let it be loaded explicitly
   }
 
   // Configuration management
   async loadConfig(): Promise<void> {
+    if (this.isLoaded) return // Avoid loading multiple times
+    
     try {
       const result = await browser.storage.local.get(['syncConfig', 'deviceInfo'])
       this.config = result.syncConfig || null
       this.deviceInfo = result.deviceInfo || null
+      this.isLoaded = true
       
       if (this.config && this.deviceInfo) {
         await this.connect()
       }
     } catch (error) {
       console.error('Failed to load sync config:', error)
+      this.isLoaded = true // Mark as loaded even on error
     }
   }
 
@@ -282,6 +287,13 @@ export class SyncClient {
     }
   }
 
+  async clearConfiguration(): Promise<void> {
+    this.config = null
+    this.deviceInfo = null
+    this.isLoaded = false
+    this.disconnect()
+  }
+
   // Cleanup
   disconnect(): void {
     if (this.ws) {
@@ -296,11 +308,17 @@ export class SyncClient {
   }
 
   // Check if sync is configured
-  isConfigured(): boolean {
+  async isConfigured(): Promise<boolean> {
+    if (!this.isLoaded) {
+      await this.loadConfig()
+    }
     return !!(this.config && this.deviceInfo)
   }
 
-  getDeviceInfo(): DeviceInfo | null {
+  async getDeviceInfo(): Promise<DeviceInfo | null> {
+    if (!this.isLoaded) {
+      await this.loadConfig()
+    }
     return this.deviceInfo
   }
 
