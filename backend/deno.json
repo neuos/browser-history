@@ -5,7 +5,8 @@
   "type": "module",
   "exports": "./src/main.ts",
   "imports": {
-    "hono": "jsr:@hono/hono@^4.8.2"
+    "hono": "jsr:@hono/hono@^4.8.2",
+    "@std/dotenv": "jsr:@std/dotenv@^0.225.0"
   },
   "tasks": {
     "dev": "deno run --allow-all --watch src/main.ts",

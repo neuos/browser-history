@@ -45,8 +45,8 @@ deno task dev
 
 ```bash
 cd extension
-npm install  # or bun install
-npm run dev
+bun install  # or bun install
+bun run dev
 ```
 
 Then load the extension in your browser from the `.output` directory.

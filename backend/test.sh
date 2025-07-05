@@ -5,7 +5,7 @@
 set -e
 
 SERVER_URL="http://localhost:8000"
-SHARED_SECRET="change-this-secret"
+SHARED_SECRET="insecure-test-secret"
 DEVICE_NAME="Test Device"
 
 echo "🧪 Testing History Sync Backend"

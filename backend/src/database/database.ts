@@ -270,7 +270,7 @@ export class Database {
 
   getHistoryNodes(deviceId?: string, limit = 100, offset = 0): HistoryNode[] {
     let stmt
-    let rows
+    let rows: HistoryNodeRow[]
     
     if (deviceId) {
       stmt = this.db.prepare(`
@@ -278,17 +278,17 @@ export class Database {
         FROM history_nodes WHERE deleted_at IS NULL AND device_id = ?
         ORDER BY timestamp DESC LIMIT ? OFFSET ?
       `)
-      rows = stmt.all(deviceId, limit, offset)
+      rows = stmt.all(deviceId, limit, offset) as HistoryNodeRow[]
     } else {
       stmt = this.db.prepare(`
         SELECT id, device_id, url, tab_id, timestamp, navigation_source_id, created_at, updated_at, deleted_at
         FROM history_nodes WHERE deleted_at IS NULL
         ORDER BY timestamp DESC LIMIT ? OFFSET ?
       `)
-      rows = stmt.all(limit, offset)
+      rows = stmt.all(limit, offset) as HistoryNodeRow[]
     }
     
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       id: row.id as string,
       deviceId: row.device_id as string,
       url: row.url as string,
@@ -322,20 +322,19 @@ export class Database {
     const row = this.db.prepare(`
       SELECT url, title, favicon, metadata, last_update, created_at, updated_at, deleted_at
       FROM pages WHERE url = ? AND deleted_at IS NULL
-    `).get(url)
+    `).get(url) as PageRow | undefined
     
     if (!row) return undefined
     
-    const r = row as any
     return {
-      url: r.url as string,
-      title: r.title as string | undefined,
-      favicon: r.favicon as string | undefined,
-      metadata: JSON.parse(r.metadata as string),
-      lastUpdate: r.last_update as number,
-      createdAt: r.created_at as number,
-      updatedAt: r.updated_at as number,
-      deletedAt: r.deleted_at as number | undefined,
+      url: row.url as string,
+      title: row.title as string | undefined,
+      favicon: row.favicon as string | undefined,
+      metadata: JSON.parse(row.metadata as string),
+      lastUpdate: row.last_update as number,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      deletedAt: row.deleted_at as number | undefined,
     }
   }
 
@@ -347,9 +346,9 @@ export class Database {
       SELECT url, title, favicon, metadata, last_update, created_at, updated_at, deleted_at
       FROM pages WHERE url IN (${placeholders}) AND deleted_at IS NULL
     `)
-    const rows = stmt.all(...urls)
+    const rows = stmt.all(...urls) as PageRow[]
     
-    return rows.map((row: any) => ({
+    return rows.map((row) => ({
       url: row.url as string,
       title: row.title as string | undefined,
       favicon: row.favicon as string | undefined,
@@ -373,15 +372,14 @@ export class Database {
     const row = this.db.prepare(`
       SELECT device_id, last_sync_timestamp, sync_vector
       FROM sync_state WHERE device_id = ?
-    `).get(deviceId)
+    `).get(deviceId) as SyncStateRow | undefined
     
     if (!row) return undefined
     
-    const r = row as any
     return {
-      deviceId: r.device_id as string,
-      lastSyncTimestamp: r.last_sync_timestamp as number,
-      syncVector: JSON.parse(r.sync_vector as string),
+      deviceId: row.device_id as string,
+      lastSyncTimestamp: row.last_sync_timestamp as number,
+      syncVector: JSON.parse(row.sync_vector as string),
     }
   }
 

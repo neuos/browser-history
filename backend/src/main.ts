@@ -1,6 +1,33 @@
+import { load } from "@std/dotenv";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+
+// Load environment variables from .env file
+await load({ export: true });
+
+// Validate required environment variables
+function validateEnvironmentVariables() {
+  const requiredVars = ['SHARED_SECRET', 'JWT_SECRET'];
+  const missing = requiredVars.filter(varName => !Deno.env.get(varName));
+  
+  if (missing.length > 0) {
+    console.error("❌ Missing required environment variables:");
+    missing.forEach(varName => {
+      console.error(`   - ${varName}`);
+    });
+    console.error("\nPlease ensure these variables are set in your .env file");
+    console.error("Example .env file content:");
+    console.error("SHARED_SECRET=your-super-secret-key-here");
+    console.error("JWT_SECRET=your-jwt-secret-here");
+    Deno.exit(1);
+  }
+  
+  console.log("✅ All required environment variables are loaded");
+}
+
+// Validate environment variables before starting
+validateEnvironmentVariables();
 
 import "./types/hono.d.ts";
 import { authRoutes } from "./routes/auth.ts";

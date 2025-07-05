@@ -1,10 +1,28 @@
-import { Hono, Context } from "hono";
+import { Hono, type Context } from "hono";
 import "../types/hono.d.ts";
 import type { Database } from "../database/database.ts";
 import type { Device } from "../types/index.ts";
 
-const sharedSecret = Deno.env.get("SHARED_SECRET") || "change-this-secret";
-const jwtSecret = Deno.env.get("JWT_SECRET") || "change-this-jwt-secret";
+// Get environment variables at runtime to ensure they're loaded
+function getSharedSecret(): string {
+  const secret = Deno.env.get("SHARED_SECRET");
+  if (!secret) {
+    console.error("❌ SHARED_SECRET environment variable is required but not set");
+    console.error("Please set SHARED_SECRET in your .env file");
+    Deno.exit(1);
+  }
+  return secret;
+}
+
+function getJwtSecret(): string {
+  const secret = Deno.env.get("JWT_SECRET");
+  if (!secret) {
+    console.error("❌ JWT_SECRET environment variable is required but not set");
+    console.error("Please set JWT_SECRET in your .env file");
+    Deno.exit(1);
+  }
+  return secret;
+}
 
 // Simple JWT creation and verification using Web Crypto API
 async function createSimpleJWT(
@@ -104,7 +122,9 @@ export function authRoutes(db: Database) {
       const { deviceName, publicKey, secret } = body;
 
       // Verify shared secret
+      const sharedSecret = getSharedSecret();
       if (secret !== sharedSecret) {
+        console.debug("Got ", secret, " expected ", sharedSecret);
         return c.json({ error: "Invalid shared secret" }, 401);
       }
 
@@ -138,7 +158,7 @@ export function authRoutes(db: Database) {
         deviceId,
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
         iat: Math.floor(Date.now() / 1000),
-      }, jwtSecret);
+      }, getJwtSecret());
       console.log("JWT token created successfully");
 
       return c.json({
@@ -179,7 +199,7 @@ export function authRoutes(db: Database) {
       }
 
       const token = authHeader.slice(7);
-      const payload = await verifySimpleJWT(token, jwtSecret);
+      const payload = await verifySimpleJWT(token, getJwtSecret());
 
       if (!payload || !payload.deviceId) {
         return c.json({ error: "Invalid token" }, 401);
@@ -199,7 +219,7 @@ export function authRoutes(db: Database) {
         deviceId: payload.deviceId as string,
         exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
         iat: Math.floor(Date.now() / 1000),
-      }, jwtSecret);
+      }, getJwtSecret());
 
       return c.json({
         token: newToken,
@@ -226,7 +246,7 @@ export async function authMiddleware(c: Context, next: () => Promise<void>) {
     }
 
     const token = authHeader.slice(7);
-    const payload = await verifySimpleJWT(token, jwtSecret);
+    const payload = await verifySimpleJWT(token, getJwtSecret());
 
     if (!payload || !payload.deviceId) {
       return c.json({ error: "Authentication failed" }, 401);
