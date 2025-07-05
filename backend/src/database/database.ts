@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import type { Device, SyncEvent, HistoryNode, Page, SyncState } from '../types/index.ts'
+import { EnvironmentConfig } from '../config/environment.ts';
 
 // Database row types
 type DeviceRow = {
@@ -54,7 +55,7 @@ export class Database {
   private db: DatabaseSync
 
   constructor(path?: string) {
-    const dbPath = path || Deno.env.get('DATABASE_PATH') || './data/history.db'
+    const dbPath = path || EnvironmentConfig.get('DATABASE_PATH')
     
     // Ensure data directory exists
     try {
