@@ -8,6 +8,9 @@ export class SyncClient {
   private eventQueue: SyncEvent[] = []
   private isProcessing = false
   private isLoaded = false
+  private loadingPromise: Promise<void> | null = null
+  private successfulSyncs = 0
+  private lastSyncTime = 0
 
   constructor() {
     // Don't load config in constructor - let it be loaded explicitly
@@ -15,20 +18,55 @@ export class SyncClient {
 
   // Configuration management
   async loadConfig(): Promise<void> {
-    if (this.isLoaded) return // Avoid loading multiple times
+    console.log('SyncClient: loadConfig called, isLoaded:', this.isLoaded, 'loadingPromise:', !!this.loadingPromise)
+    
+    // If already loaded, return immediately
+    if (this.isLoaded) return
+    
+    // If already loading, wait for the existing promise
+    if (this.loadingPromise) {
+      console.log('SyncClient: Already loading config, waiting for existing promise...')
+      return this.loadingPromise
+    }
+    
+    // Start loading
+    this.loadingPromise = this._doLoadConfig()
     
     try {
+      await this.loadingPromise
+    } finally {
+      this.loadingPromise = null
+    }
+  }
+  
+  private async _doLoadConfig(): Promise<void> {
+    try {
+      console.log('SyncClient: Loading config from browser storage...')
       const result = await browser.storage.local.get(['syncConfig', 'deviceInfo'])
+      console.log('SyncClient: Storage result:', { 
+        hasSyncConfig: !!result.syncConfig, 
+        hasDeviceInfo: !!result.deviceInfo,
+        syncConfig: result.syncConfig,
+        deviceInfo: result.deviceInfo 
+      })
       this.config = result.syncConfig || null
       this.deviceInfo = result.deviceInfo || null
       this.isLoaded = true
       
+      console.log('SyncClient: Loaded config:', !!this.config, 'deviceInfo:', !!this.deviceInfo)
+      
       if (this.config && this.deviceInfo) {
-        await this.connect()
+        try {
+          await this.connect()
+          console.log('SyncClient: Connected successfully during config load')
+        } catch (connectError) {
+          console.warn('SyncClient: Connection failed during config load, will retry later:', connectError)
+          // Don't throw - we can still try to sync later
+        }
       }
     } catch (error) {
       console.error('Failed to load sync config:', error)
-      this.isLoaded = true // Mark as loaded even on error
+      this.isLoaded = true // Mark as loaded even on error to prevent infinite retry loops
     }
   }
 
@@ -133,8 +171,13 @@ export class SyncClient {
         await this.refreshToken()
       }
 
-      // Connect WebSocket
-      await this.connectWebSocket()
+      // Try to connect WebSocket (but don't fail if it doesn't work)
+      try {
+        await this.connectWebSocket()
+        console.log('SyncClient: WebSocket connected successfully')
+      } catch (wsError) {
+        console.warn('SyncClient: WebSocket connection failed, but HTTP sync will still work:', wsError)
+      }
       
       // Sync pending events
       await this.syncPendingEvents()
@@ -216,8 +259,11 @@ export class SyncClient {
 
   // Event synchronization
   async submitSyncEvent(event: SyncEvent): Promise<void> {
+    console.log('SyncClient: Submitting sync event:', event.eventType, event.entityType, event.entityId)
+    
     // Add to queue
     this.eventQueue.push(event)
+    console.log('SyncClient: Event queue length:', this.eventQueue.length)
     
     // Try to sync immediately
     await this.syncPendingEvents()
@@ -225,15 +271,20 @@ export class SyncClient {
 
   private async syncPendingEvents(): Promise<void> {
     if (!this.config || !this.deviceInfo || this.isProcessing || this.eventQueue.length === 0) {
+      console.log('SyncClient: Skipping sync - config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'processing:', this.isProcessing, 'queue length:', this.eventQueue.length)
       return
     }
 
+    console.log('SyncClient: Starting sync of', this.eventQueue.length, 'events')
     this.isProcessing = true
 
     try {
       const events = [...this.eventQueue]
       this.eventQueue = []
 
+      console.log('SyncClient: Sending events to', `${this.config.serverUrl}/sync/events`)
+      console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
+      
       const response = await fetch(`${this.config.serverUrl}/sync/events`, {
         method: 'POST',
         headers: {
@@ -244,14 +295,31 @@ export class SyncClient {
       })
 
       if (!response.ok) {
-        // Put events back in queue
-        this.eventQueue.unshift(...events)
-        throw new Error('Failed to sync events')
+        console.error('SyncClient: Sync failed with status:', response.status, response.statusText)
+        const errorText = await response.text()
+        console.error('SyncClient: Error response:', errorText)
+        
+        // Only put events back in queue if it's a network/auth error, not a duplicate ID error
+        if (response.status !== 400 && response.status !== 409 && response.status !== 500) {
+          this.eventQueue.unshift(...events)
+          console.log('SyncClient: Events put back in queue for retry')
+        } else {
+          console.warn(`SyncClient: Events not retried due to server error (${response.status}), may be duplicate IDs`)
+        }
+        
+        throw new Error(`Failed to sync events: ${response.status} ${errorText}`)
       }
 
-      console.log(`Synced ${events.length} events successfully`)
+      const result = await response.json()
+      console.log('SyncClient: Sync successful:', result)
+      console.log(`SyncClient: Synced ${events.length} events successfully`)
+      
+      // Update success counters
+      this.successfulSyncs += events.length
+      this.lastSyncTime = Date.now()
+      console.log('SyncClient: Updated counters - successfulSyncs:', this.successfulSyncs, 'lastSyncTime:', new Date(this.lastSyncTime).toLocaleString())
     } catch (error) {
-      console.error('Event sync failed:', error)
+      console.error('SyncClient: Event sync failed:', error)
     } finally {
       this.isProcessing = false
     }
@@ -281,16 +349,19 @@ export class SyncClient {
   getStatus(): SyncStatus {
     return {
       isConnected: this.ws?.readyState === WebSocket.OPEN,
-      lastSync: 0, // TODO: Track last sync time
+      lastSync: this.lastSyncTime,
       pendingEvents: this.eventQueue.length,
+      successfulSyncs: this.successfulSyncs,
       error: undefined, // TODO: Track connection errors
     }
   }
 
   async clearConfiguration(): Promise<void> {
+    console.log('SyncClient: clearConfiguration called - clearing config and device info')
     this.config = null
     this.deviceInfo = null
     this.isLoaded = false
+    this.loadingPromise = null
     this.disconnect()
   }
 
@@ -309,10 +380,14 @@ export class SyncClient {
 
   // Check if sync is configured
   async isConfigured(): Promise<boolean> {
+    console.log('SyncClient: isConfigured called, isLoaded:', this.isLoaded, 'config:', !!this.config, 'deviceInfo:', !!this.deviceInfo)
     if (!this.isLoaded) {
+      console.log('SyncClient: Config not loaded yet, loading now...')
       await this.loadConfig()
     }
-    return !!(this.config && this.deviceInfo)
+    const configured = !!(this.config && this.deviceInfo)
+    console.log('SyncClient: isConfigured?', configured, 'config:', !!this.config, 'deviceInfo:', !!this.deviceInfo)
+    return configured
   }
 
   async getDeviceInfo(): Promise<DeviceInfo | null> {

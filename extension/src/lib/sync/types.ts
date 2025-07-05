@@ -29,5 +29,6 @@ export interface SyncStatus {
   isConnected: boolean
   lastSync: number
   pendingEvents: number
+  successfulSyncs: number
   error?: string
 }

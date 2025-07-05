@@ -10,13 +10,26 @@ export class HistoryService {
 
     // Track the last node ID for each tab
     private tabNodeMap: Record<number, HistoryNodeId> = {};
+    
+    // Sync callbacks
+    private onHistoryNodeCreated?: (node: HistoryNode) => Promise<void>;
+    private onPageCreated?: (page: Page) => Promise<void>;
+    private onPageUpdated?: (page: Page) => Promise<void>;
 
     constructor(
         historyRepo: IHistoryRepository,
         pageRepo: IPageRepository,
+        syncCallbacks?: {
+            onHistoryNodeCreated?: (node: HistoryNode) => Promise<void>;
+            onPageCreated?: (page: Page) => Promise<void>;
+            onPageUpdated?: (page: Page) => Promise<void>;
+        }
     ) {
         this.historyRepo = historyRepo;
         this.pageRepo = pageRepo;
+        this.onHistoryNodeCreated = syncCallbacks?.onHistoryNodeCreated;
+        this.onPageCreated = syncCallbacks?.onPageCreated;
+        this.onPageUpdated = syncCallbacks?.onPageUpdated;
     }
 
 
@@ -43,13 +56,49 @@ export class HistoryService {
     }
 
     updateTitle(url: string, title: string) {
-        this.pageRepo.addOrUpdate(new Page(url, undefined, title))
+        this.updatePageTitleOrFavicon(url, title, undefined)
             .catch(error => console.error('Error updating page title:', error));
     }
 
     updateFavicon(url: string, favicon: string) {
-        this.pageRepo.addOrUpdate(new Page(url, favicon))
+        this.updatePageTitleOrFavicon(url, undefined, favicon)
             .catch(error => console.error('Error updating page favicon:', error));
+    }
+
+    private async updatePageTitleOrFavicon(url: string, title?: string, favicon?: string): Promise<void> {
+        try {
+            let page = await this.pageRepo.get(url);
+            let isNewPage = false;
+            
+            if (page) {
+                // Update existing page
+                if (title) page.title = title;
+                if (favicon) page.favicon = favicon;
+            } else {
+                // Create new page
+                page = new Page(url, favicon, title);
+                isNewPage = true;
+            }
+            
+            await this.pageRepo.addOrUpdate(page);
+            
+            // Trigger sync callback if available
+            if (isNewPage && this.onPageCreated) {
+                try {
+                    await this.onPageCreated(page);
+                } catch (error) {
+                    console.error('Error in page created sync callback:', error);
+                }
+            } else if (!isNewPage && this.onPageUpdated) {
+                try {
+                    await this.onPageUpdated(page);
+                } catch (error) {
+                    console.error('Error in page updated sync callback:', error);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating page title/favicon:', error);
+        }
     }
 
     async onNavigationCommitted(details: globalThis.Browser.webNavigation.WebNavigationTransitionCallbackDetails) {
@@ -109,6 +158,15 @@ export class HistoryService {
             await this.updatePageMetadata(url, title, timestamp);
             this.tabNodeMap[tabId] = node.id;
             console.log(`Added navigation node: ${node.id} for ${url} (parent: ${parentId})`);
+            
+            // Trigger sync callback if available
+            if (this.onHistoryNodeCreated) {
+                try {
+                    await this.onHistoryNodeCreated(node);
+                } catch (error) {
+                    console.error('Error in history node sync callback:', error);
+                }
+            }
         } catch (error) {
             console.error('Error processing navigation:', error);
             return undefined;
@@ -148,6 +206,8 @@ export class HistoryService {
     private async updatePageMetadata(url: string, title: string | undefined, timestamp: number): Promise<void> {
         try {
             let page = await this.pageRepo.get(url);
+            let isNewPage = false;
+            
             if (page) {
                 // Update existing page
                 page.metadata.lastVisited = timestamp;
@@ -161,8 +221,25 @@ export class HistoryService {
                     lastVisited: timestamp,
                     visitCount: 1
                 });
+                isNewPage = true;
             }
+            
             await this.pageRepo.addOrUpdate(page);
+            
+            // Trigger sync callback if available
+            if (isNewPage && this.onPageCreated) {
+                try {
+                    await this.onPageCreated(page);
+                } catch (error) {
+                    console.error('Error in page created sync callback:', error);
+                }
+            } else if (!isNewPage && this.onPageUpdated) {
+                try {
+                    await this.onPageUpdated(page);
+                } catch (error) {
+                    console.error('Error in page updated sync callback:', error);
+                }
+            }
         } catch (e) {
             console.error(`Error updating page metadata for ${url}:`, e);
         }

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-  import { syncService } from "@/lib/sync/SyncService";
+  import { onMount, onDestroy } from "svelte";
+  import { popupSyncService } from "@/lib/sync/PopupSyncService";
   import type { DeviceInfo, SyncStatus } from "@/lib/sync/types";
 
   let isConfigured = false;
@@ -14,22 +14,41 @@
   let sharedSecret = '';
   let isSetupLoading = false;
   let setupError = '';
+  
+  let statusRefreshInterval: ReturnType<typeof setInterval> | null = null;
 
   onMount(async () => {
     // Initialize sync service first to load any existing configuration
-    await syncService.initialize();
+    await popupSyncService.initialize();
     await checkSyncStatus();
     
     // Set default device name only if not configured
     if (!isConfigured && !deviceName) {
       deviceName = `${navigator.platform} - ${new Date().toLocaleDateString()}`;
     }
+    
+    // Refresh status every 2 seconds when configured
+    if (isConfigured) {
+      statusRefreshInterval = setInterval(async () => {
+        try {
+          syncStatus = await popupSyncService.getStatusAsync();
+        } catch (error) {
+          console.error('Failed to refresh sync status:', error);
+        }
+      }, 2000);
+    }
+  });
+
+  onDestroy(() => {
+    if (statusRefreshInterval) {
+      clearInterval(statusRefreshInterval);
+    }
   });
 
   async function checkSyncStatus() {
-    isConfigured = await syncService.isConfigured();
-    deviceInfo = await syncService.getDeviceInfo();
-    syncStatus = syncService.getStatus();
+    isConfigured = await popupSyncService.isConfigured();
+    deviceInfo = await popupSyncService.getDeviceInfo();
+    syncStatus = await popupSyncService.getStatusAsync();
   }
 
   async function setupSync() {
@@ -42,9 +61,16 @@
     setupError = '';
 
     try {
-      await syncService.setupSync(serverUrl, deviceName, sharedSecret);
+      await popupSyncService.setupSync(serverUrl, deviceName, sharedSecret);
       await checkSyncStatus();
       isSetupMode = false;
+      
+      // Start status refresh interval after successful setup
+      if (!statusRefreshInterval) {
+        statusRefreshInterval = setInterval(async () => {
+          syncStatus = await popupSyncService.getStatusAsync();
+        }, 2000);
+      }
     } catch (error) {
       setupError = error instanceof Error ? error.message : 'Setup failed';
     } finally {
@@ -54,7 +80,13 @@
 
   async function clearSync() {
     if (confirm('This will remove sync configuration and disconnect from the server. Continue?')) {
-      await syncService.clearConfiguration();
+      // Stop the refresh interval
+      if (statusRefreshInterval) {
+        clearInterval(statusRefreshInterval);
+        statusRefreshInterval = null;
+      }
+      
+      await popupSyncService.clearConfiguration();
       await checkSyncStatus();
     }
   }
@@ -147,6 +179,18 @@
           <span class="label">Pending Events:</span>
           <span class="value">{syncStatus?.pendingEvents || 0}</span>
         </div>
+        
+        <div class="status-item">
+          <span class="label">Successful Syncs:</span>
+          <span class="value success-counter">{syncStatus?.successfulSyncs || 0}</span>
+        </div>
+        
+        {#if syncStatus?.lastSync && syncStatus.lastSync > 0}
+          <div class="status-item">
+            <span class="label">Last Sync:</span>
+            <span class="value">{formatTimestamp(syncStatus.lastSync)}</span>
+          </div>
+        {/if}
         
         {#if deviceInfo}
           <div class="status-item">
@@ -336,6 +380,11 @@
 
   .status-item .value.disconnected {
     color: #d93025;
+  }
+
+  .status-item .value.success-counter {
+    color: #137333;
+    font-weight: 600;
   }
 
   .status-item .value.error {

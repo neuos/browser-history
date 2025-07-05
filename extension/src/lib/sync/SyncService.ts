@@ -14,10 +14,19 @@ export class SyncService {
     if (this.isInitialized) return
 
     try {
+      console.log('SyncService: Initializing...')
       await this.syncClient.loadConfig()
       
       if (await this.syncClient.isConfigured()) {
-        await this.syncClient.connect()
+        console.log('SyncService: Sync is configured, attempting to connect...')
+        try {
+          await this.syncClient.connect()
+          console.log('SyncService: Connected successfully')
+        } catch (error) {
+          console.warn('SyncService: Connection failed during initialization:', error)
+        }
+      } else {
+        console.log('SyncService: Sync not configured')
       }
 
       // Listen for sync events from other devices
@@ -49,8 +58,14 @@ export class SyncService {
 
   // History sync
   async syncHistoryNodeCreated(node: HistoryNode): Promise<void> {
-    if (!(await this.syncClient.isConfigured())) return
+    console.log('SyncService: syncHistoryNodeCreated called for:', node.url)
+    
+    if (!(await this.syncClient.isConfigured())) {
+      console.log('SyncService: Sync not configured, skipping history node sync')
+      return
+    }
 
+    console.log('SyncService: Creating sync event for history node:', node.id)
     const event: SyncEvent = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
@@ -69,6 +84,7 @@ export class SyncService {
       },
     }
 
+    console.log('SyncService: Submitting history sync event:', event)
     await this.syncClient.submitSyncEvent(event)
   }
 
@@ -97,8 +113,14 @@ export class SyncService {
 
   // Page sync
   async syncPageCreated(page: Page): Promise<void> {
-    if (!(await this.syncClient.isConfigured())) return
+    console.log('SyncService: syncPageCreated called for:', page.url)
+    
+    if (!(await this.syncClient.isConfigured())) {
+      console.log('SyncService: Sync not configured, skipping page sync')
+      return
+    }
 
+    console.log('SyncService: Creating sync event for page:', page.url)
     const event: SyncEvent = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
@@ -116,12 +138,19 @@ export class SyncService {
       },
     }
 
+    console.log('SyncService: Submitting page sync event:', event)
     await this.syncClient.submitSyncEvent(event)
   }
 
   async syncPageUpdated(page: Page): Promise<void> {
-    if (!(await this.syncClient.isConfigured())) return
+    console.log('SyncService: syncPageUpdated called for:', page.url)
+    
+    if (!(await this.syncClient.isConfigured())) {
+      console.log('SyncService: Sync not configured, skipping page update sync')
+      return
+    }
 
+    console.log('SyncService: Creating sync event for page update:', page.url)
     const event: SyncEvent = {
       id: crypto.randomUUID(),
       timestamp: Date.now(),
@@ -138,6 +167,7 @@ export class SyncService {
       },
     }
 
+    console.log('SyncService: Submitting page update sync event:', event)
     await this.syncClient.submitSyncEvent(event)
   }
 

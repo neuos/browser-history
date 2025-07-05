@@ -203,8 +203,9 @@ export class Database {
 
   // Sync events operations
   addSyncEvent(event: SyncEvent): void {
+    // Use INSERT OR IGNORE to handle duplicate event IDs gracefully
     this.db.prepare(`
-      INSERT INTO sync_events (id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum)
+      INSERT OR IGNORE INTO sync_events (id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       event.id,

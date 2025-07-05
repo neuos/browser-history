@@ -131,9 +131,25 @@ function applySyncEvent(db: Database, event: SyncEvent) {
 
   try {
     if (event.entityType === "history") {
+      const nodeDeviceId = (event.data.deviceId as string) || event.deviceId;
+      
+      // Ensure the device exists in the devices table
+      // If we encounter a device ID in history data that doesn't exist, create a placeholder device
+      const existingDevice = db.getDevice(nodeDeviceId);
+      if (!existingDevice) {
+        console.log(`Creating placeholder device for unknown device ID: ${nodeDeviceId}`);
+        db.registerDevice({
+          deviceId: nodeDeviceId,
+          deviceName: `Unknown Device (${nodeDeviceId.substring(0, 8)})`,
+          publicKey: '', // Placeholder - this will be updated when the actual device registers
+          createdAt: now,
+          lastSeen: now,
+        });
+      }
+      
       const historyNode = {
         id: event.entityId,
-        deviceId: (event.data.deviceId as string) || event.deviceId,
+        deviceId: nodeDeviceId,
         url: event.data.url as string,
         tabId: event.data.tabId as number,
         timestamp: event.data.timestamp as number,
