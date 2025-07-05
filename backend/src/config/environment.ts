@@ -2,24 +2,10 @@
  * Environment configuration class that centralizes all environment variable
  * definitions, defaults, and validation logic.
  */
-export class EnvironmentConfig {
-  // Define all environment variables with their types and defaults
-  private static readonly ENV_DEFINITIONS = {
-    // Required secrets (no defaults for security)
-    SHARED_SECRET: { required: true, default: undefined as string | undefined },
-    JWT_SECRET: { required: true, default: undefined as string | undefined },
-    
-    // Server configuration with defaults
-    PORT: { required: false, default: "8000" },
-    HOST: { required: false, default: "0.0.0.0" },
-    
-    // CORS configuration
-    CORS_ORIGIN: { required: false, default: "*" },
-    
-    // Database configuration
-    DATABASE_PATH: { required: false, default: "./data/history.db" },
-  } as const;
 
+import { ENV_DEFINITIONS } from './env-definitions.ts';
+
+export class EnvironmentConfig {
   private static _instance: EnvironmentConfig | null = null;
   private readonly _config: Record<string, string>;
 
@@ -42,7 +28,7 @@ export class EnvironmentConfig {
    * Get the singleton instance of EnvironmentConfig
    * Throws an error if not initialized
    */
-  public static getInstance(): EnvironmentConfig {
+  private static getInstance(): EnvironmentConfig {
     if (!EnvironmentConfig._instance) {
       throw new Error("EnvironmentConfig not initialized. Call EnvironmentConfig.initialize() first.");
     }
@@ -51,22 +37,76 @@ export class EnvironmentConfig {
 
   /**
    * Static convenience methods to access configuration directly
-   * These delegate to the singleton instance
+   * These implement the logic directly instead of forwarding to instance methods
    */
-  public static get(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): string {
-    return EnvironmentConfig.getInstance().get(key);
+  public static get(key: keyof typeof ENV_DEFINITIONS): string;
+  public static get<T extends 'string' | 'number' | 'boolean'>(
+    key: keyof typeof ENV_DEFINITIONS, 
+    type: T
+  ): T extends 'string' ? string : T extends 'number' ? number : T extends 'boolean' ? boolean : never;
+  public static get(key: keyof typeof ENV_DEFINITIONS, type?: 'string' | 'number' | 'boolean'): string | number | boolean {
+    const instance = EnvironmentConfig.getInstance();
+    
+    if (type === 'number') {
+      const value = instance._config[key as string];
+      if (value === undefined) {
+        throw new Error(`Environment variable ${String(key)} is not available`);
+      }
+      const parsed = parseInt(value, 10);
+      if (isNaN(parsed)) {
+        throw new Error(`Environment variable ${String(key)} must be a valid number, got: ${value}`);
+      }
+      return parsed;
+    } else if (type === 'boolean') {
+      const value = instance._config[key as string];
+      if (value === undefined) {
+        throw new Error(`Environment variable ${String(key)} is not available`);
+      }
+      const lowerValue = value.toLowerCase();
+      return lowerValue === "true" || lowerValue === "1" || lowerValue === "yes";
+    } else if (type === 'string' || type === undefined) {
+      const value = instance._config[key as string];
+      if (value === undefined) {
+        throw new Error(`Environment variable ${String(key)} is not available`);
+      }
+      return value;
+    } else {
+      // This should never be reached due to TypeScript constraints, but adding for runtime safety
+      throw new Error(`Unsupported type: ${type}. Supported types are 'string', 'number', 'boolean'`);
+    }
   }
 
-  public static getOptional(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS, fallback: string): string {
-    return EnvironmentConfig.getInstance().getOptional(key, fallback);
+  public static getNumber(key: keyof typeof ENV_DEFINITIONS): number {
+    return EnvironmentConfig.get(key, 'number');
   }
 
-  public static getNumber(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): number {
-    return EnvironmentConfig.getInstance().getNumber(key);
+  public static getBoolean(key: keyof typeof ENV_DEFINITIONS): boolean {
+    return EnvironmentConfig.get(key, 'boolean');
   }
 
-  public static getBoolean(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): boolean {
-    return EnvironmentConfig.getInstance().getBoolean(key);
+  /**
+   * Get all configuration as a read-only object
+   */
+  public static getAllConfig(): Readonly<Record<string, string>> {
+    const instance = EnvironmentConfig.getInstance();
+    return Object.freeze({ ...instance._config });
+  }
+
+  /**
+   * Log the current configuration (excluding secrets)
+   */
+  public static logConfiguration(): void {
+    const instance = EnvironmentConfig.getInstance();
+    console.log("📋 Environment Configuration:");
+    
+    for (const [key, value] of Object.entries(instance._config)) {
+      const definition = ENV_DEFINITIONS[key];
+      if (definition?.isSecret === true) {
+        console.log(`   ${key}: ${"*".repeat(8)} (hidden)`);
+      } else {
+        console.log(`   ${key}: ${value}`);
+      }
+    }
   }
 
   /**
@@ -77,7 +117,7 @@ export class EnvironmentConfig {
     const missing: string[] = [];
 
     // Process each environment variable definition
-    for (const [key, definition] of Object.entries(EnvironmentConfig.ENV_DEFINITIONS)) {
+    for (const [key, definition] of Object.entries(ENV_DEFINITIONS)) {
       const value = Deno.env.get(key);
       
       if (value !== undefined) {
@@ -86,8 +126,8 @@ export class EnvironmentConfig {
       } else if (definition.default !== undefined) {
         // Use default value
         config[key] = definition.default;
-      } else if (definition.required) {
-        // Required but not set
+      } else if (definition.default === undefined) {
+        // Required but not set (no default means required)
         missing.push(key);
       }
     }
@@ -115,82 +155,64 @@ export class EnvironmentConfig {
     console.error("Example .env file content:");
     
     // Show examples for required variables
-    const requiredVars = Object.entries(EnvironmentConfig.ENV_DEFINITIONS)
-      .filter(([_, def]) => def.required);
+    const requiredVars = Object.entries(ENV_DEFINITIONS)
+      .filter(([_, def]) => def.default === undefined);
     
-    requiredVars.forEach(([key]) => {
-      switch (key) {
-        case "SHARED_SECRET":
-          console.error("SHARED_SECRET=your-super-secret-key-here");
-          break;
-        case "JWT_SECRET":
-          console.error("JWT_SECRET=your-jwt-secret-here");
-          break;
-        default:
-          console.error(`${key}=your-${key.toLowerCase().replace('_', '-')}-here`);
-      }
+    requiredVars.forEach(([key, definition]) => {
+      console.error(`${key}=${definition.example}`);
     });
   }
 
   /**
-   * Get a required environment variable value
+   * Generate a complete example .env file content
    */
-  public get(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): string {
-    const value = this._config[key];
-    if (value === undefined) {
-      throw new Error(`Environment variable ${key} is not available`);
-    }
-    return value;
-  }
+  public static generateExampleEnvFile(): string {
+    const lines: string[] = [
+      "# Environment Configuration",
+      "# Copy this to .env and modify the values as needed",
+      "# ⚠️  IMPORTANT: Keep secret values secure and never commit them to version control",
+      ""
+    ];
 
-  /**
-   * Get an optional environment variable with fallback
-   */
-  public getOptional(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS, fallback: string): string {
-    return this._config[key] ?? fallback;
-  }
-
-  /**
-   * Get a numeric environment variable
-   */
-  public getNumber(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): number {
-    const value = this.get(key);
-    const parsed = parseInt(value, 10);
-    if (isNaN(parsed)) {
-      throw new Error(`Environment variable ${key} must be a valid number, got: ${value}`);
-    }
-    return parsed;
-  }
-
-  /**
-   * Get a boolean environment variable
-   */
-  public getBoolean(key: keyof typeof EnvironmentConfig.ENV_DEFINITIONS): boolean {
-    const value = this.get(key).toLowerCase();
-    return value === "true" || value === "1" || value === "yes";
-  }
-
-  /**
-   * Get all configuration as a read-only object
-   */
-  public getAllConfig(): Readonly<Record<string, string>> {
-    return Object.freeze({ ...this._config });
-  }
-
-  /**
-   * Log the current configuration (excluding secrets)
-   */
-  public logConfiguration(): void {
-    console.log("📋 Environment Configuration:");
+    // Group variables by their group property
+    const groupedVars: Record<string, string[]> = {};
     
-    const secretKeys = ["SHARED_SECRET", "JWT_SECRET"];
-    
-    for (const [key, value] of Object.entries(this._config)) {
-      if (secretKeys.includes(key)) {
-        console.log(`   ${key}: ${"*".repeat(8)} (hidden)`);
-      } else {
-        console.log(`   ${key}: ${value}`);
+    for (const [key, def] of Object.entries(ENV_DEFINITIONS)) {
+      if (!groupedVars[def.group]) {
+        groupedVars[def.group] = [];
       }
+      groupedVars[def.group].push(key);
     }
+
+    for (const [group, keys] of Object.entries(groupedVars)) {
+      lines.push(`# ${group}`);
+      
+      keys.forEach(key => {
+        const def = ENV_DEFINITIONS[key];
+        if (def) {
+          let comment = "";
+          let exampleValue = "";
+          
+          if (def.default === undefined) {
+            // Required variables must have an example
+            exampleValue = def.example;
+            comment = " # Required";
+            if (def.isSecret) {
+              comment += " - Keep this secret!";
+            }
+          } else {
+            // Optional variables use example if provided, otherwise use default
+            exampleValue = def.example || def.default;
+            comment = ` # Optional (default: ${def.default})`;
+          }
+          
+          lines.push(`${key}=${exampleValue}${comment}`);
+        }
+      });
+      
+      lines.push("");
+    }
+
+    return lines.join("\n");
   }
 }
