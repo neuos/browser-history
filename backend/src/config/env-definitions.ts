@@ -1,56 +1,51 @@
-/**
- * Environment variable definitions with types, defaults, examples, and grouping.
- * This file centralizes all environment variable configuration.
- */
-
-import type { EnvVar as _EnvVar } from './env-types.ts';
+import type { EnvVar as _EnvVar } from "./env-types.ts";
 
 /**
  * Central definition of all environment variables with their configuration.
  * Each variable must specify:
  * - group: Category for documentation grouping
  * - type: Expected type ('string' | 'number' | 'boolean'), defaults to 'string'
- * - For required vars: example (no default allowed)
- * - For optional vars: default (example is optional)
+ * - For required vars: example must be provided
+ * - For optional vars: default must be provided, example is optional
  * - isSecret: Optional, defaults to false
  */
 export const ENV_DEFINITIONS = {
   // Required secrets (no defaults for security)
-  SHARED_SECRET: { 
+  SHARED_SECRET: {
     group: "Security",
     type: "string",
     example: "your-super-secret-key-for-device-registration",
-    isSecret: true
+    isSecret: true,
   },
-  JWT_SECRET: { 
+  JWT_SECRET: {
     group: "Security",
     type: "string",
     example: "your-jwt-signing-secret-key",
-    isSecret: true
+    isSecret: true,
   },
-  
+
   // Server configuration with defaults
-  PORT: { 
-    group: "Server",
-    type: "number",
-    default: "8000"
-  },
-  HOST: { 
+  HOST: {
     group: "Server",
     type: "string",
-    default: "0.0.0.0"
+    default: "0.0.0.0",
   },
-  CORS_ORIGIN: { 
+  PORT: {
+    group: "Server",
+    type: "number",
+    default: "8000",
+  },
+  CORS_ORIGIN: {
     group: "Server",
     type: "string",
     default: "*",
-    example: "https://yourdomain.com"
+    example: "https://yourdomain.com",
   },
-  
+
   // Database configuration
-  DATABASE_PATH: { 
+  DATABASE_PATH: {
     group: "Database",
     type: "string",
-    default: "./data/history.db"
+    default: "./data/history.db",
   },
 } as const satisfies Record<string, _EnvVar>;

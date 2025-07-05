@@ -154,7 +154,6 @@ export class EnvironmentConfig {
     const lines: string[] = [
       "# Environment Configuration",
       "# Copy this to .env and modify the values as needed",
-      "# ⚠️  IMPORTANT: Keep secret values secure and never commit them to version control",
       ""
     ];
 
@@ -172,16 +171,16 @@ export class EnvironmentConfig {
 
     for (const [group, keys] of Object.entries(groupedVars)) {
       lines.push(`# ${group}`);
-      
+
       keys.forEach(key => {
         const def = (ENV_DEFINITIONS as Record<string, Record<string, unknown>>)[key];
         if (def) {
           let comment = "";
           let exampleValue = "";
-          
-          if (!('default' in def)) {
+          const isOptional = 'default' in def;
+          if (!isOptional) {
             // Required variables
-            exampleValue = ('example' in def ? def.example : 'CHANGE_ME') as string;
+            exampleValue = def.example as string;
             comment = " # Required";
             if ('isSecret' in def && def.isSecret) {
               comment += " - Keep this secret!";
@@ -192,7 +191,7 @@ export class EnvironmentConfig {
             comment = ` # Optional (default: ${def.default})`;
           }
           
-          lines.push(`${key}=${exampleValue}${comment}`);
+          lines.push(`${isOptional?'# ':''}${key}=${exampleValue}${comment}`);
         }
       });
       
