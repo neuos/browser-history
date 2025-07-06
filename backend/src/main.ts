@@ -14,15 +14,15 @@ import { authRoutes } from "./routes/auth.ts";
 import { syncRoutes } from "./routes/sync.ts";
 import { historyRoutes } from "./routes/history.ts";
 import { devicesRoutes } from "./routes/devices.ts";
+import { sseRoutes, SSEManager } from "./routes/sse.ts";
 import { Database } from "./database/database.ts";
-import { WebSocketManager } from "./websocket/manager.ts";
 
 // Now initialize environment configuration after all imports and .env loading
 EnvironmentConfig.initialize();
 
 const app = new Hono();
 const db = new Database();
-const wsManager = new WebSocketManager();
+const sseManager = new SSEManager();
 
 // Initialize database
 db.init();
@@ -46,47 +46,31 @@ app.get("/health", (c) => {
 
 // API Routes
 app.route("/auth", authRoutes(db));
-app.route("/sync", syncRoutes(db, wsManager));
+app.route("/sync", syncRoutes(db, sseManager));
 app.route("/history", historyRoutes(db));
 app.route("/devices", devicesRoutes(db));
+app.route("/sse", sseRoutes(db, sseManager));
 
-// Start server with hybrid WebSocket/HTTP handling
+// Start server
 const port = EnvironmentConfig.get("PORT");
 const host = EnvironmentConfig.get("HOST");
 
 console.log(`🚀 History sync server starting on ${host}:${port}`);
-console.log(`📡 WebSocket endpoint available at ws://${host}:${port}/ws`);
+console.log(`📡 SSE endpoint available at http://${host}:${port}/sse/events`);
 
 // Log the configuration (excluding secrets)
 EnvironmentConfig.logConfiguration();
 
-// Create a hybrid handler that handles WebSocket upgrades and delegates HTTP to Hono
-// Note: Hono's upgradeWebSocket helper is not compatible with Deno.serve, so we handle
-// WebSocket upgrades manually and delegate other requests to Hono for full compatibility
+// Simple HTTP server - no WebSocket complexity needed
 Deno.serve({
   port,
   hostname: host,
-}, (req) => {
-  const url = new URL(req.url);
-  
-  // Handle WebSocket upgrade requests directly (bypassing Hono for WebSocket)
-  if (url.pathname === "/ws") {
-    if (req.headers.get("upgrade") !== "websocket") {
-      return new Response("Expected WebSocket upgrade", { status: 400 });
-    }
+}, app.fetch);
 
-    const { socket, response } = Deno.upgradeWebSocket(req);
+console.log("Server is ready and listening for HTTP requests including SSE");
 
-    console.log("✅ WebSocket upgrade successful");
-    
-    // Let the WebSocketManager handle all events
-    wsManager.handleConnection(socket);
-
-    return response;
-  }
-
-  // For all other routes, delegate to Hono
-  return app.fetch(req);
+// Cleanup on shutdown
+globalThis.addEventListener("beforeunload", () => {
+  sseManager.cleanup();
+  db.close();
 });
-
-console.log("Server is ready and listening for WebSocket connections");

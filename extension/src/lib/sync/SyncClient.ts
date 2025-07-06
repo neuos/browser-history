@@ -7,7 +7,7 @@ import { Page } from '@/lib/HistoryTree/HistoryNode'
 export class SyncClient {
   private config: SyncConfig | null = null
   private deviceInfo: DeviceInfo | null = null
-  private ws: WebSocket | null = null
+  private eventSource: EventSource | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private eventQueue: SyncEvent[] = []
   private isProcessing = false
@@ -187,12 +187,12 @@ export class SyncClient {
         await this.refreshToken()
       }
 
-      // Try to connect WebSocket (but don't fail if it doesn't work)
+      // Try to connect SSE (but don't fail if it doesn't work)
       try {
-        await this.connectWebSocket()
-        console.log('SyncClient: WebSocket connected successfully')
-      } catch (wsError) {
-        console.warn('SyncClient: WebSocket connection failed, but HTTP sync will still work:', wsError)
+        await this.connectSSE()
+        console.log('SyncClient: SSE connected successfully')
+      } catch (sseError) {
+        console.warn('SyncClient: SSE connection failed, but HTTP sync will still work:', sseError)
       }
       
       // Sync pending events
@@ -205,16 +205,19 @@ export class SyncClient {
     }
   }
 
-  private async connectWebSocket(): Promise<void> {
+  private async connectSSE(): Promise<void> {
     if (!this.config || !this.deviceInfo) return
 
     return new Promise((resolve, reject) => {
-      const wsUrl = this.config!.serverUrl.replace(/^http/, 'ws') + '/ws'
+      const sseUrl = `${this.config!.serverUrl}/sse/events`
       
-      this.ws = new WebSocket(wsUrl)
+      // Create EventSource with authentication token as query parameter
+      const urlWithAuth = `${sseUrl}?token=${encodeURIComponent(this.deviceInfo!.token)}`
       
-      this.ws.onopen = () => {
-        console.log('WebSocket connected')
+      this.eventSource = new EventSource(urlWithAuth)
+      
+      this.eventSource.onopen = () => {
+        console.log('SSE connected')
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer)
           this.reconnectTimer = null
@@ -222,24 +225,24 @@ export class SyncClient {
         resolve()
       }
 
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error)
+      this.eventSource.onerror = (error) => {
+        console.error('SSE error:', error)
+        // Handle reconnection on close
+        if (this.eventSource?.readyState === EventSource.CLOSED) {
+          console.log('SSE disconnected')
+          this.eventSource = null
+          this.scheduleReconnect()
+        }
         reject(error)
       }
 
-      this.ws.onclose = () => {
-        console.log('WebSocket disconnected')
-        this.ws = null
-        this.scheduleReconnect()
-      }
-
-      this.ws.onmessage = (event) => {
-        this.handleWebSocketMessage(event.data)
+      this.eventSource.onmessage = (event) => {
+        this.handleSSEMessage(event.data)
       }
     })
   }
 
-  private handleWebSocketMessage(data: string): void {
+  private handleSSEMessage(data: string): void {
     try {
       const message = JSON.parse(data)
       
@@ -251,17 +254,15 @@ export class SyncClient {
           message.data.events.forEach((event: SyncEvent) => this.applySyncEvent(event))
           break
         case 'ping':
-          this.sendWebSocketMessage({ type: 'pong', timestamp: Date.now() })
+          // SSE doesn't need pong response - just log that we're alive
+          console.log('SSE ping received')
+          break
+        case 'connected':
+          console.log('SSE connection confirmed for device:', message.data.deviceId)
           break
       }
     } catch (error) {
-      console.error('Failed to handle WebSocket message:', error)
-    }
-  }
-
-  private sendWebSocketMessage(message: any): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(message))
+      console.error('Failed to handle SSE message:', error)
     }
   }
 
@@ -540,7 +541,7 @@ export class SyncClient {
   // Status
   getStatus(): SyncStatus {
     return {
-      isConnected: this.ws?.readyState === WebSocket.OPEN,
+      isConnected: this.eventSource?.readyState === EventSource.OPEN,
       lastSync: this.lastSyncTime,
       pendingEvents: this.eventQueue.length,
       successfulSyncs: this.successfulSyncs,
@@ -559,9 +560,9 @@ export class SyncClient {
 
   // Cleanup
   disconnect(): void {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
+    if (this.eventSource) {
+      this.eventSource.close()
+      this.eventSource = null
     }
     
     if (this.reconnectTimer) {

@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import "../types/hono.d.ts";
 import type { Database } from "../database/database.ts";
 import type { SyncEvent } from "../types/index.ts";
-import type { WebSocketManager } from "../websocket/manager.ts";
+import type { SSEManager } from "./sse.ts";
 import { authMiddleware } from "./auth.ts";
 
-export function syncRoutes(db: Database, wsManager: WebSocketManager) {
+export function syncRoutes(db: Database, sseManager: SSEManager) {
   const app = new Hono();
 
   // Apply auth middleware to all sync routes
@@ -75,8 +75,8 @@ export function syncRoutes(db: Database, wsManager: WebSocketManager) {
         processedEvents.push(event);
       }
 
-      // Broadcast events to other connected devices via WebSocket
-      wsManager.broadcastToOthers(deviceId, {
+      // Broadcast events to other connected devices via SSE
+      sseManager.broadcastToOthers(deviceId, {
         type: "sync_batch",
         data: { events: processedEvents },
         timestamp: Date.now(),

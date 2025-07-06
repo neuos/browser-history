@@ -100,4 +100,29 @@ test.describe('Browser History Extension - Simplified E2E', () => {
     // Accept both hex and rgb color formats
     expect(status.color).toMatch(/(#6c757d|rgb\(108, 117, 125\))/);
   });
+
+  test('should establish SSE connection after sync setup', async ({ popupPage }) => {
+    console.log('Testing SSE connection status...');
+    
+    // Set up sync
+    await popupPage.setupSync(
+      'http://localhost:8000',
+      'Test Device - SSE Connection',
+      'secret'
+    );
+    
+    // Wait a moment for the connection to establish
+    await popupPage.page.waitForTimeout(3000);
+    
+    // Check connection status
+    const status = await popupPage.getSyncStatus();
+    console.log('Current SSE connection status:', status.text);
+    
+    // Take a screenshot for debugging
+    await popupPage.page.screenshot({ path: 'debug-sse-connection.png' });
+    
+    // The status should show "Connected" not "Disconnected"
+    expect(status.text).toContain('Connected');
+    expect(status.text).not.toContain('Disconnected');
+  });
 });

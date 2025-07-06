@@ -42,7 +42,7 @@ async function createSimpleJWT(
   return `${message}.${signatureB64}`;
 }
 
-async function verifySimpleJWT(
+export async function verifySimpleJWT(
   token: string,
   secret: string,
 ): Promise<Record<string, string | number> | null> {
