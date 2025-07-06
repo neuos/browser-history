@@ -31,6 +31,10 @@ export interface ClearConfigurationMessage extends SyncMessage {
   type: 'CLEAR_CONFIGURATION'
 }
 
+export interface PerformFullSyncMessage extends SyncMessage {
+  type: 'PERFORM_FULL_SYNC'
+}
+
 // Messages from background to popup
 export interface SyncStatusResponse extends SyncMessage {
   type: 'SYNC_STATUS_RESPONSE'
@@ -77,12 +81,21 @@ export interface ClearConfigurationResponse extends SyncMessage {
   }
 }
 
+export interface PerformFullSyncResponse extends SyncMessage {
+  type: 'PERFORM_FULL_SYNC_RESPONSE'
+  payload: {
+    success: boolean
+    error?: string
+  }
+}
+
 export type PopupToBackgroundMessage = 
   | SetupSyncMessage
   | GetSyncStatusMessage
   | GetDeviceInfoMessage
   | IsConfiguredMessage
   | ClearConfigurationMessage
+  | PerformFullSyncMessage
 
 export type BackgroundToPopupMessage = 
   | SyncStatusResponse
@@ -90,3 +103,4 @@ export type BackgroundToPopupMessage =
   | IsConfiguredResponse
   | SetupSyncResponse
   | ClearConfigurationResponse
+  | PerformFullSyncResponse

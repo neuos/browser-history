@@ -251,6 +251,18 @@ export class HistoryService {
 
         const entries: HistoryEntry[] = history.map(node => {
             const page = pages.find(p => p.url === node.url);
+            
+            // Validate timestamp
+            if (!node.timestamp) {
+                console.error('HistoryService: HistoryNode missing timestamp:', node);
+                throw new Error(`History node ${node.id} for ${node.url} has no timestamp`);
+            }
+            
+            if (!(node.timestamp instanceof Date) || isNaN(node.timestamp.getTime())) {
+                console.error('HistoryService: HistoryNode has invalid timestamp:', node.timestamp, node);
+                throw new Error(`History node ${node.id} for ${node.url} has invalid timestamp: ${node.timestamp}`);
+            }
+            
             return {
                 id: node.id,
                 url: node.url,

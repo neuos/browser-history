@@ -1,4 +1,8 @@
 import type { SyncConfig, DeviceInfo, SyncEvent, SyncStatus } from './types'
+import { HistoryRepositoryIndexedDB } from '@/lib/HistoryTree/HistoryRepositoryIndexedDB'
+import { PageRepositoryIndexedDB } from '@/lib/HistoryTree/PageRepositoryIndexedDB'
+import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
+import { Page } from '@/lib/HistoryTree/HistoryNode'
 
 export class SyncClient {
   private config: SyncConfig | null = null
@@ -11,6 +15,11 @@ export class SyncClient {
   private loadingPromise: Promise<void> | null = null
   private successfulSyncs = 0
   private lastSyncTime = 0
+  private lastDownloadTimestamp = 0
+  
+  // Repository instances for direct access
+  private historyRepository = new HistoryRepositoryIndexedDB()
+  private pageRepository = new PageRepositoryIndexedDB()
 
   constructor() {
     // Don't load config in constructor - let it be loaded explicitly
@@ -42,18 +51,20 @@ export class SyncClient {
   private async _doLoadConfig(): Promise<void> {
     try {
       console.log('SyncClient: Loading config from browser storage...')
-      const result = await browser.storage.local.get(['syncConfig', 'deviceInfo'])
+      const result = await browser.storage.local.get(['syncConfig', 'deviceInfo', 'lastDownloadTimestamp'])
       console.log('SyncClient: Storage result:', { 
         hasSyncConfig: !!result.syncConfig, 
         hasDeviceInfo: !!result.deviceInfo,
+        lastDownloadTimestamp: result.lastDownloadTimestamp,
         syncConfig: result.syncConfig,
         deviceInfo: result.deviceInfo 
       })
       this.config = result.syncConfig || null
       this.deviceInfo = result.deviceInfo || null
+      this.lastDownloadTimestamp = result.lastDownloadTimestamp || 0
       this.isLoaded = true
       
-      console.log('SyncClient: Loaded config:', !!this.config, 'deviceInfo:', !!this.deviceInfo)
+      console.log('SyncClient: Loaded config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'lastDownload:', this.lastDownloadTimestamp)
       
       if (this.config && this.deviceInfo) {
         try {
@@ -78,6 +89,11 @@ export class SyncClient {
   async saveDeviceInfo(deviceInfo: DeviceInfo): Promise<void> {
     this.deviceInfo = deviceInfo
     await browser.storage.local.set({ deviceInfo })
+  }
+
+  async saveLastDownloadTimestamp(timestamp: number): Promise<void> {
+    this.lastDownloadTimestamp = timestamp
+    await browser.storage.local.set({ lastDownloadTimestamp: timestamp })
   }
 
   // Device registration
@@ -180,7 +196,7 @@ export class SyncClient {
       }
       
       // Sync pending events
-      await this.syncPendingEvents()
+      await this.performBidirectionalSync()
       
     } catch (error) {
       console.error('Connection failed:', error)
@@ -265,80 +281,259 @@ export class SyncClient {
     this.eventQueue.push(event)
     console.log('SyncClient: Event queue length:', this.eventQueue.length)
     
-    // Try to sync immediately
-    await this.syncPendingEvents()
+    // Try to sync immediately (both upload and download)
+    await this.performBidirectionalSync()
   }
 
-  private async syncPendingEvents(): Promise<void> {
-    if (!this.config || !this.deviceInfo || this.isProcessing || this.eventQueue.length === 0) {
-      console.log('SyncClient: Skipping sync - config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'processing:', this.isProcessing, 'queue length:', this.eventQueue.length)
+  // Manually trigger a full bidirectional sync (useful when opening the extension)
+  async performFullSync(): Promise<void> {
+    console.log('SyncClient: Manual full sync requested')
+    if (!this.isLoaded) {
+      console.log('SyncClient: Config not loaded, loading first...')
+      await this.loadConfig()
+    }
+    
+    if (!this.config || !this.deviceInfo) {
+      console.log('SyncClient: No config available for full sync')
+      return
+    }
+    
+    await this.performBidirectionalSync()
+  }
+
+  // Perform bidirectional sync: upload pending events and download new events from other devices
+  private async performBidirectionalSync(): Promise<void> {
+    if (!this.config || !this.deviceInfo || this.isProcessing) {
+      console.log('SyncClient: Skipping bidirectional sync - config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'processing:', this.isProcessing)
       return
     }
 
-    console.log('SyncClient: Starting sync of', this.eventQueue.length, 'events')
     this.isProcessing = true
+    console.log('SyncClient: Starting bidirectional sync...')
 
     try {
-      const events = [...this.eventQueue]
-      this.eventQueue = []
-
-      console.log('SyncClient: Sending events to', `${this.config.serverUrl}/sync/events`)
-      console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
-      
-      // Note: deviceId is NOT sent in the request body - it's provided via JWT in Authorization header
-      // This ensures security and prevents device ID spoofing
-      const response = await fetch(`${this.config.serverUrl}/sync/events`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.deviceInfo.token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ events }),
-      })
-
-      if (!response.ok) {
-        console.error('SyncClient: Sync failed with status:', response.status, response.statusText)
-        const errorText = await response.text()
-        console.error('SyncClient: Error response:', errorText)
-        
-        // Only put events back in queue if it's a network/auth error, not a duplicate ID error
-        if (response.status !== 400 && response.status !== 409 && response.status !== 500) {
-          this.eventQueue.unshift(...events)
-          console.log('SyncClient: Events put back in queue for retry')
-        } else {
-          console.warn(`SyncClient: Events not retried due to server error (${response.status}), may be duplicate IDs`)
-        }
-        
-        throw new Error(`Failed to sync events: ${response.status} ${errorText}`)
+      // Step 1: Upload pending events (if any)
+      if (this.eventQueue.length > 0) {
+        console.log('SyncClient: Uploading', this.eventQueue.length, 'pending events')
+        await this.uploadPendingEvents()
       }
 
-      const result = await response.json()
-      console.log('SyncClient: Sync successful:', result)
-      console.log(`SyncClient: Synced ${events.length} events successfully`)
+      // Step 2: Download new events from other devices
+      console.log('SyncClient: Downloading events from other devices since:', this.lastDownloadTimestamp)
+      await this.downloadEventsFromOtherDevices()
       
-      // Update success counters
-      this.successfulSyncs += events.length
-      this.lastSyncTime = Date.now()
-      console.log('SyncClient: Updated counters - successfulSyncs:', this.successfulSyncs, 'lastSyncTime:', new Date(this.lastSyncTime).toLocaleString())
+      console.log('SyncClient: Bidirectional sync completed successfully')
     } catch (error) {
-      console.error('SyncClient: Event sync failed:', error)
+      console.error('SyncClient: Bidirectional sync failed:', error)
+      throw error
     } finally {
       this.isProcessing = false
     }
   }
 
-  // Apply incoming sync events
+  private async uploadPendingEvents(): Promise<void> {
+    if (this.eventQueue.length === 0) {
+      console.log('SyncClient: No pending events to upload')
+      return
+    }
+
+    const events = [...this.eventQueue]
+    this.eventQueue = []
+
+    console.log('SyncClient: Sending events to', `${this.config!.serverUrl}/sync/events`)
+    console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
+    
+    // Note: deviceId is NOT sent in the request body - it's provided via JWT in Authorization header
+    // This ensures security and prevents device ID spoofing
+    const response = await fetch(`${this.config!.serverUrl}/sync/events`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.deviceInfo!.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ events }),
+    })
+
+    if (!response.ok) {
+      console.error('SyncClient: Upload failed with status:', response.status, response.statusText)
+      const errorText = await response.text()
+      console.error('SyncClient: Error response:', errorText)
+      
+      // Only put events back in queue if it's a network/auth error, not a duplicate ID error
+      if (response.status !== 400 && response.status !== 409 && response.status !== 500) {
+        this.eventQueue.unshift(...events)
+        console.log('SyncClient: Events put back in queue for retry')
+      } else {
+        console.warn(`SyncClient: Events not retried due to server error (${response.status}), may be duplicate IDs`)
+      }
+      
+      throw new Error(`Failed to upload events: ${response.status} ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log('SyncClient: Upload successful:', result)
+    console.log(`SyncClient: Uploaded ${events.length} events successfully`)
+    
+    // Update success counters
+    this.successfulSyncs += events.length
+    this.lastSyncTime = Date.now()
+    console.log('SyncClient: Updated counters - successfulSyncs:', this.successfulSyncs, 'lastSyncTime:', new Date(this.lastSyncTime).toLocaleString())
+  }
+
+  private async downloadEventsFromOtherDevices(): Promise<void> {
+    if (!this.config || !this.deviceInfo) {
+      throw new Error('No configuration available for download')
+    }
+
+    const since = this.lastDownloadTimestamp
+    const url = `${this.config.serverUrl}/sync/events?since=${since}&exclude_device=true`
+    
+    console.log('SyncClient: Fetching events from', url)
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.deviceInfo.token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('SyncClient: Download failed:', response.status, errorText)
+      throw new Error(`Failed to download events: ${response.status} ${errorText}`)
+    }
+
+    const result = await response.json()
+    const events: SyncEvent[] = result.events || []
+    
+    console.log(`SyncClient: Downloaded ${events.length} events from other devices`)
+    
+    if (events.length > 0) {
+      // Process each downloaded event
+      for (const event of events) {
+        console.log('SyncClient: Processing downloaded event:', event.eventType, event.entityType, event.entityId)
+        await this.applySyncEvent(event)
+      }
+      
+      // Update the last download timestamp to the newest event's timestamp
+      const newestTimestamp = Math.max(...events.map(e => e.timestamp))
+      await this.saveLastDownloadTimestamp(newestTimestamp)
+      console.log('SyncClient: Updated last download timestamp to:', new Date(newestTimestamp).toLocaleString())
+    } else {
+      // Even if no events, update timestamp to current time to avoid re-fetching the same range
+      const now = Date.now()
+      await this.saveLastDownloadTimestamp(now)
+      console.log('SyncClient: No new events, updated download timestamp to current time')
+    }
+  }
+
+  // Apply incoming sync events directly to repositories
   private async applySyncEvent(event: SyncEvent): Promise<void> {
     try {
-      console.log('Applying sync event:', event)
+      console.log('SyncClient: Applying sync event directly:', event.eventType, event.entityType, event.entityId)
       
-      // Broadcast to extension components
-      browser.runtime.sendMessage({
-        type: 'SYNC_EVENT_RECEIVED',
-        event,
-      })
+      if (event.entityType === 'history') {
+        await this.applyHistorySyncEvent(event)
+      } else if (event.entityType === 'page') {
+        await this.applyPageSyncEvent(event)
+      } else {
+        console.warn('SyncClient: Unknown entity type in sync event:', event.entityType)
+      }
     } catch (error) {
-      console.error('Failed to apply sync event:', error)
+      console.error('SyncClient: Failed to apply sync event:', error)
+      throw error
+    }
+  }
+  
+  private async applyHistorySyncEvent(event: SyncEvent): Promise<void> {
+    const historyData = event.data
+    console.log('SyncClient: Applying history sync event:', event.eventType, 'for', historyData.url)
+    
+    if (event.eventType === 'CREATE' || event.eventType === 'UPDATE') {
+      // Check if this history node already exists
+      try {
+        const existingNode = await this.historyRepository.get(historyData.id)
+        console.log('SyncClient: Existing history node:', existingNode ? 'found' : 'not found')
+      } catch (error) {
+        console.log('SyncClient: No existing history node found (expected for new entries)')
+      }
+      
+      // Create HistoryNode from sync data
+      const historyNode = new HistoryNode(
+        historyData.tabId,
+        historyData.url,
+        historyData.navigationSourceId || null
+      )
+      
+      // Set the synced properties with validation
+      historyNode.id = historyData.id
+      historyNode.deviceId = historyData.deviceId
+      
+      // Validate and set timestamp
+      if (!historyData.timestamp) {
+        console.error('SyncClient: Missing timestamp in sync data:', historyData)
+        throw new Error(`Sync event for ${historyData.url} has no timestamp`)
+      }
+      
+      const timestamp = new Date(historyData.timestamp)
+      if (isNaN(timestamp.getTime())) {
+        console.error('SyncClient: Invalid timestamp in sync data:', historyData.timestamp, historyData)
+        throw new Error(`Sync event for ${historyData.url} has invalid timestamp: ${historyData.timestamp}`)
+      }
+      
+      historyNode.timestamp = timestamp
+      console.log('SyncClient: Set timestamp to:', timestamp.toISOString(), 'from:', historyData.timestamp)
+      
+      try {
+        await this.historyRepository.add(historyNode)
+        console.log('SyncClient: Successfully added history node for:', historyData.url, 'from device:', historyData.deviceId)
+        
+        // Verify it was actually saved
+        const savedNode = await this.historyRepository.get(historyData.id)
+        if (savedNode) {
+          console.log('SyncClient: SUCCESS - History node confirmed in database')
+        } else {
+          console.error('SyncClient: WARNING - History node was not saved to database!')
+        }
+      } catch (addError) {
+        console.error('SyncClient: Error adding history node:', addError)
+        throw addError
+      }
+    }
+  }
+  
+  private async applyPageSyncEvent(event: SyncEvent): Promise<void> {
+    const pageData = event.data
+    console.log('SyncClient: Applying page sync event:', event.eventType, 'for', pageData.url)
+    
+    if (event.eventType === 'CREATE' || event.eventType === 'UPDATE') {
+      const page = new Page(
+        pageData.url,
+        pageData.favicon,
+        pageData.title,
+        pageData.metadata || {}
+      )
+      
+      if (pageData.lastUpdate) {
+        page.lastUpdate = new Date(pageData.lastUpdate)
+      }
+      
+      try {
+        await this.pageRepository.addOrUpdate(page)
+        console.log('SyncClient: Successfully added/updated page for:', pageData.url)
+        
+        // Verify it was actually saved
+        const savedPage = await this.pageRepository.get(pageData.url)
+        if (savedPage) {
+          console.log('SyncClient: SUCCESS - Page confirmed in database')
+        } else {
+          console.error('SyncClient: WARNING - Page was not saved to database!')
+        }
+      } catch (addError) {
+        console.error('SyncClient: Error adding/updating page:', addError)
+        throw addError
+      }
     }
   }
 
@@ -396,5 +591,10 @@ export class SyncClient {
 
   getConfig(): SyncConfig | null {
     return this.config
+  }
+
+  async resetLastDownloadTimestamp(): Promise<void> {
+    console.log('SyncClient: Resetting lastDownloadTimestamp to 0')
+    await this.saveLastDownloadTimestamp(0)
   }
 }

@@ -5,7 +5,8 @@ import type {
   DeviceInfoResponse,
   IsConfiguredResponse,
   SetupSyncResponse,
-  ClearConfigurationResponse
+  ClearConfigurationResponse,
+  PerformFullSyncResponse
 } from './messages'
 import type { DeviceInfo, SyncStatus } from './types'
 
@@ -95,6 +96,17 @@ export class PopupSyncService {
     
     if (!response.payload.success) {
       throw new Error('Failed to clear configuration')
+    }
+  }
+
+  async performFullSync(): Promise<void> {
+    console.log('PopupSyncService: Triggering full sync via background script')
+    const response = await this.sendMessage<PerformFullSyncResponse>({
+      type: 'PERFORM_FULL_SYNC'
+    })
+    
+    if (!response.payload.success) {
+      throw new Error(response.payload.error || 'Full sync failed')
     }
   }
 

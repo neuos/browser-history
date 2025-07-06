@@ -1,8 +1,5 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { HistoryService } from "@/lib/HistoryTree/HistoryService";
-  import { HistoryRepositoryIndexedDB } from "@/lib/HistoryTree/HistoryRepositoryIndexedDB";
-  import { PageRepositoryIndexedDB } from "@/lib/HistoryTree/PageRepositoryIndexedDB";
   import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
   import { Debouncer as Debouncer } from "@/lib/Debouncer";
 
@@ -15,10 +12,43 @@
 
   const loadingDebouncer = new Debouncer(30, () => isLoading = true, () => isLoading = false);
 
-  const service = new HistoryService(
-    new HistoryRepositoryIndexedDB(),
-    new PageRepositoryIndexedDB(),
-  );
+  // Request history data from background script instead of creating repositories here
+  async function loadHistory(): Promise<HistoryEntry[]> {
+    try {
+      console.log('HistoryList: Requesting history data from background script...');
+      const response = await browser.runtime.sendMessage({
+        type: 'GET_HISTORY_DATA',
+        searchTerm,
+        startDate,
+        endDate
+      });
+      
+      if (response && response.type === 'GET_HISTORY_DATA_RESPONSE') {
+        if (Array.isArray(response.payload)) {
+          console.log('HistoryList: Received history data:', response.payload.length, 'entries');
+          console.log('HistoryList: Sample entry for debugging:', response.payload[0]);
+          
+          // Convert ISO string timestamps back to Date objects for UI
+          const processedEntries = response.payload.map((entry: any) => ({
+            ...entry,
+            timestamp: new Date(entry.timestamp)
+          }));
+          
+          console.log('HistoryList: Sample processed entry:', processedEntries[0]);
+          return processedEntries;
+        } else if (response.payload && response.payload.error) {
+          console.error('HistoryList: Error from background script:', response.payload.error);
+          throw new Error(response.payload.error);
+        }
+      }
+      
+      console.warn('HistoryList: Invalid response format:', response);
+      return [];
+    } catch (error) {
+      console.error('HistoryList: Error requesting history data:', error);
+      throw error;
+    }
+  }
 
   // Format date to a readable string
   function formatDate(date: Date): string {
@@ -70,8 +100,8 @@
            null;
   }
 
-  // Load history data
-  async function loadHistory() {
+  // Load history data from background script
+  async function loadHistoryData() {
     loadingDebouncer.start();
 
     try {
@@ -83,11 +113,7 @@
         end.setHours(23, 59, 59, 999);
       }
 
-      history = await service.getHistoryEntries({
-        query: searchTerm,
-        startDate: start,
-        endDate: end,
-      });
+      history = await loadHistory();
     } catch (e) {
       error = e instanceof Error ? e.message : "Failed to load history";
     } finally {
@@ -96,18 +122,18 @@
   }
 
   onMount(() => {
-    loadHistory();
+    loadHistoryData();
   });
 
   function handleSearch() {
-    loadHistory();
+    loadHistoryData();
   }
 
   function clearFilters() {
     searchTerm = "";
     startDate = "";
     endDate = "";
-    loadHistory();
+    loadHistoryData();
   }
 </script>
 

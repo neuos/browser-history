@@ -28,6 +28,7 @@
     }
     
     // Refresh status every 2 seconds when configured
+    /*
     if (isConfigured) {
       statusRefreshInterval = setInterval(async () => {
         try {
@@ -37,6 +38,7 @@
         }
       }, 2000);
     }
+    */
   });
 
   onDestroy(() => {
@@ -65,12 +67,8 @@
       await checkSyncStatus();
       isSetupMode = false;
       
-      // Start status refresh interval after successful setup
-      if (!statusRefreshInterval) {
-        statusRefreshInterval = setInterval(async () => {
-          syncStatus = await popupSyncService.getStatusAsync();
-        }, 2000);
-      }
+      // Status will be refreshed manually when user performs actions
+      // No automatic polling to reduce background load
     } catch (error) {
       setupError = error instanceof Error ? error.message : 'Setup failed';
     } finally {

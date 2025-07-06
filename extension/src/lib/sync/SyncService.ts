@@ -29,13 +29,6 @@ export class SyncService {
         console.log('SyncService: Sync not configured')
       }
 
-      // Listen for sync events from other devices
-      browser.runtime.onMessage.addListener((message) => {
-        if (message.type === 'SYNC_EVENT_RECEIVED') {
-          this.handleIncomingSyncEvent(message.event)
-        }
-      })
-
       this.isInitialized = true
       console.log('Sync service initialized')
     } catch (error) {
@@ -171,21 +164,6 @@ export class SyncService {
     await this.syncClient.submitSyncEvent(event)
   }
 
-  // Handle incoming sync events
-  private async handleIncomingSyncEvent(event: SyncEvent): Promise<void> {
-    try {
-      console.log('Processing incoming sync event:', event)
-
-      // Broadcast to other parts of the extension
-      browser.runtime.sendMessage({
-        type: 'APPLY_SYNC_EVENT',
-        event,
-      })
-    } catch (error) {
-      console.error('Failed to handle incoming sync event:', error)
-    }
-  }
-
   // Status and management
   async isConfigured(): Promise<boolean> {
     return await this.syncClient.isConfigured()
@@ -193,6 +171,11 @@ export class SyncService {
 
   getStatus() {
     return this.syncClient.getStatus()
+  }
+
+  async performFullSync(): Promise<void> {
+    console.log('SyncService: Full sync requested')
+    await this.syncClient.performFullSync()
   }
 
   async getDeviceInfo(): Promise<DeviceInfo | null> {
@@ -206,6 +189,11 @@ export class SyncService {
   async clearConfiguration(): Promise<void> {
     await browser.storage.local.remove(['syncConfig', 'deviceInfo'])
     await this.syncClient.clearConfiguration()
+  }
+
+  async resetSyncTimestamp(): Promise<void> {
+    console.log('SyncService: Resetting sync timestamp')
+    await this.syncClient.resetLastDownloadTimestamp()
   }
 }
 
