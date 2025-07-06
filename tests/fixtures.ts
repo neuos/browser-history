@@ -1,5 +1,6 @@
-import { test as base, chromium, type BrowserContext } from '@playwright/test';
+import { test as base, chromium, type BrowserContext, type Page } from '@playwright/test';
 import path from 'path';
+import { ExtensionManager, ExtensionPopupPage, BackendApi } from './pages';
 
 // Shared context and extension ID across all tests
 let sharedContext: BrowserContext | null = null;
@@ -8,6 +9,9 @@ let sharedExtensionId: string | null = null;
 export const test = base.extend<{
   context: BrowserContext;
   extensionId: string;
+  extensionManager: ExtensionManager;
+  popupPage: ExtensionPopupPage;
+  backendApi: BackendApi;
 }>({
   context: async ({}, use) => {
     if (!sharedContext) {
@@ -66,6 +70,26 @@ export const test = base.extend<{
     }
     
     await use(sharedExtensionId!);
+  },
+
+  extensionManager: async ({ context }, use) => {
+    const manager = new ExtensionManager(context);
+    await use(manager);
+  },
+
+  popupPage: async ({ context, extensionId }, use) => {
+    const page = await context.newPage();
+    const popupPage = new ExtensionPopupPage(page);
+    await popupPage.goto(extensionId);
+    
+    await use(popupPage);
+    
+    await page.close();
+  },
+
+  backendApi: async ({}, use) => {
+    const api = new BackendApi();
+    await use(api);
   },
 });
 

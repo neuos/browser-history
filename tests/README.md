@@ -36,18 +36,24 @@ The E2E tests verify the complete functionality of the browser extension, includ
 
 ### Test Files
 
-- **`extension.spec.ts`**: Comprehensive test suite with detailed scenarios
-- **`extension-simple.spec.ts`**: Simplified test suite using utility classes
-- **`utils.ts`**: Test utility classes for extension and backend interactions
+- **`extension-simple.spec.ts`**: Main E2E test suite with 4 comprehensive scenarios
+- **`fixtures.ts`**: Custom Playwright fixtures for extension context and dependencies  
+- **`pages/`**: Page Object Model classes following Playwright best practices
+  - `ExtensionPopupPage.ts`: Page object for extension popup interactions
+  - `ExtensionManager.ts`: Utility class for extension management and navigation
+  - `BackendApi.ts`: API client for backend health checks and event management
 
-### Utility Classes
+### Page Object Model
 
-#### `ExtensionTestUtils`
-Provides high-level methods for interacting with the extension:
-- `openPopup()`: Opens extension popup
-- `setupSync()`: Configures sync with server
-- `getSyncStatus()`: Gets current sync status
-- `getHistoryItems()`: Retrieves browsing history
+Following Playwright's recommended [Page Object Model pattern](https://playwright.dev/docs/pom), the tests are organized using dedicated page objects:
+
+#### `ExtensionPopupPage`
+Encapsulates all popup interactions:
+- `goto()`: Navigate to extension popup
+- `setupSync()`: Configure sync settings
+- `getSyncStatus()`: Check sync connection status  
+- `getHistoryItems()`: Retrieve browsing history
+- `disconnect()`: Disconnect from sync server
 - `visitPage()`: Navigates to pages to generate history
 - `disconnect()`: Disconnects sync
 
