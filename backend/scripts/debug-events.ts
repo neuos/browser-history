@@ -1,5 +1,12 @@
 #!/usr/bin/env -S deno run --allow-all
 
+/**
+ * Debug Events - Test the exact sync events that were previously failing
+ * 
+ * This script reproduces specific sync events that caused FOREIGN KEY errors
+ * and verifies they now work correctly with the fixed sync logic.
+ */
+
 // Test the exact sync events that were failing
 const testEvents = [
   {
@@ -42,7 +49,7 @@ const testEvents = [
   }
 ]
 
-console.log('Testing sync events that previously failed...')
+console.log('🔍 Testing sync events that previously failed...')
 
 // First register the sender device
 const registerResponse = await fetch('http://localhost:8000/auth/register-device', {
@@ -51,13 +58,13 @@ const registerResponse = await fetch('http://localhost:8000/auth/register-device
     'Content-Type': 'application/json',
   },
   body: JSON.stringify({
-    deviceName: 'Test Device',
+    deviceName: 'Debug Test Device',
     secret: 'secret',
   }),
 })
 
 if (!registerResponse.ok) {
-  console.error('Failed to register device:', await registerResponse.text())
+  console.error('❌ Failed to register device:', await registerResponse.text())
   Deno.exit(1)
 }
 
@@ -65,6 +72,7 @@ const deviceData = await registerResponse.json()
 console.log('✅ Device registered:', deviceData.deviceId)
 
 // Now send the sync events
+console.log('📤 Sending sync events...')
 const syncResponse = await fetch('http://localhost:8000/sync/events', {
   method: 'POST',
   headers: {
@@ -81,4 +89,4 @@ if (!syncResponse.ok) {
 
 const syncResult = await syncResponse.json()
 console.log('✅ Sync successful:', syncResult)
-console.log('✅ All previously failing events now work!')
+console.log('🎉 All previously failing events now work!')

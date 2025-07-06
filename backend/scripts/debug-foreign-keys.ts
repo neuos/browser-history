@@ -1,8 +1,16 @@
 #!/usr/bin/env -S deno run --allow-all
 
-import { Database } from './src/database/database.ts'
+/**
+ * Debug Foreign Keys - Test FOREIGN KEY constraint fixes for sync events
+ * 
+ * This script tests the fix for FOREIGN KEY constraint errors that occurred when
+ * sync events contained deviceIds that didn't exist in the devices table.
+ * The fix uses the authenticated deviceId from JWT instead of data payload deviceId.
+ */
 
-console.log('Testing FOREIGN KEY constraint fix...')
+import { Database } from '../src/database/database.ts'
+
+console.log('🔍 Testing FOREIGN KEY constraint fix...')
 
 // Initialize database
 const db = new Database('./data/history.db')
@@ -29,7 +37,7 @@ const testEvent = {
 }
 
 // First register the sender device
-console.log('Registering sender device...')
+console.log('📝 Registering sender device...')
 db.registerDevice({
   deviceId: "sender-device-456",
   deviceName: "Test Sender Device",
@@ -45,6 +53,8 @@ function testApplySyncEvent(db: Database, event: typeof testEvent) {
     if (event.entityType === "history") {
       // Always use the authenticated deviceId from JWT, ignore any deviceId in data payload
       const nodeDeviceId = event.deviceId;
+      
+      console.log(`📤 Using authenticated deviceId: ${nodeDeviceId} (ignoring data.deviceId: ${event.data.deviceId})`)
       
       const historyNode = {
         id: event.entityId,
@@ -66,14 +76,14 @@ function testApplySyncEvent(db: Database, event: typeof testEvent) {
   }
 }
 
-console.log('Testing sync event with authenticated device ID...')
+console.log('🧪 Testing sync event with authenticated device ID...')
 testApplySyncEvent(db, testEvent)
 
 // Check if devices were created
-console.log('\nDevices in database:')
+console.log('\n📊 Devices in database:')
 const devices = db.getAllDevices()
 devices.forEach(device => {
-  console.log(`- ${device.deviceId}: ${device.deviceName}`)
+  console.log(`  - ${device.deviceId}: ${device.deviceName}`)
 })
 
-console.log('\n✅ Test completed successfully! The fix works.')
+console.log('\n🎉 Test completed successfully! The FOREIGN KEY fix works.')

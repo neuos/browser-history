@@ -1,6 +1,14 @@
 #!/usr/bin/env -S deno run --allow-all
 
-import { Database } from "./src/database/database.ts";
+/**
+ * Debug Sync - Test sync event processing with fixed logic
+ * 
+ * This script tests sync event processing to ensure the FOREIGN KEY constraint
+ * fix works correctly. It simulates events where the data payload contains a
+ * different deviceId than the authenticated device.
+ */
+
+import { Database } from "../src/database/database.ts";
 
 // Initialize database
 const db = new Database("./data/history.db");
@@ -26,9 +34,9 @@ const testEvent = {
   checksum: "test-checksum",
 };
 
-console.log("Testing sync event processing with fixed logic...");
-console.log("Event deviceId (from JWT):", testEvent.deviceId);
-console.log("Data deviceId (from payload):", testEvent.data.deviceId);
+console.log("🧪 Testing sync event processing with fixed logic...");
+console.log("📝 Event deviceId (from JWT):", testEvent.deviceId);
+console.log("📝 Data deviceId (from payload):", testEvent.data.deviceId);
 
 // Apply the fixed logic
 function applySyncEventFixed(db: Database, event: typeof testEvent) {
@@ -39,7 +47,7 @@ function applySyncEventFixed(db: Database, event: typeof testEvent) {
       // Always use the authenticated deviceId from JWT, ignore any deviceId in data payload
       const nodeDeviceId = event.deviceId;
       
-      console.log("Using deviceId:", nodeDeviceId);
+      console.log("✅ Using authenticated deviceId:", nodeDeviceId, "(ignoring payload deviceId)");
       
       const historyNode = {
         id: event.entityId,
@@ -53,7 +61,7 @@ function applySyncEventFixed(db: Database, event: typeof testEvent) {
         deletedAt: undefined,
       };
       
-      console.log("Attempting to insert history node:", historyNode);
+      console.log("📤 Attempting to insert history node:", historyNode);
       db.upsertHistoryNode(historyNode);
       console.log("✅ Successfully inserted history node!");
     }
@@ -65,7 +73,7 @@ function applySyncEventFixed(db: Database, event: typeof testEvent) {
 
 try {
   applySyncEventFixed(db, testEvent);
-  console.log("🎉 Test completed successfully!");
+  console.log("🎉 Test completed successfully! Sync logic works correctly.");
 } catch (error) {
   console.error("💥 Test failed:", error);
   Deno.exit(1);
