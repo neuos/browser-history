@@ -1,0 +1,11 @@
+{
+  "scriptId": "367",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/config/env-definitions.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 1208, "count": 1 }],
+      "isBlockCoverage": true
+    }
+  ]
+}

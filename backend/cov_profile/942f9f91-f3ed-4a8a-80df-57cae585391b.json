@@ -1,0 +1,35 @@
+{
+  "scriptId": "334",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/tests/database.test.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 1711, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fn",
+      "ranges": [
+        { "startOffset": 246, "endOffset": 1706, "count": 1 },
+        { "startOffset": 389, "endOffset": 396, "count": 0 },
+        { "startOffset": 1674, "endOffset": 1702, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 559, "endOffset": 1008, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 1054, "endOffset": 1206, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 1260, "endOffset": 1602, "count": 1 }],
+      "isBlockCoverage": true
+    }
+  ]
+}

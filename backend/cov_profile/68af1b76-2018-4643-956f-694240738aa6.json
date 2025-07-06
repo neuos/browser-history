@@ -1,0 +1,136 @@
+{
+  "scriptId": "334",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/tests/auth.test.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 9209, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createTestJWT",
+      "ranges": [
+        { "startOffset": 278, "endOffset": 1109, "count": 9 },
+        { "startOffset": 841, "endOffset": 1108, "count": 8 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 486, "endOffset": 512, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        { "startOffset": 601, "endOffset": 627, "count": 1 },
+        { "startOffset": 622, "endOffset": 627, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        { "startOffset": 1022, "endOffset": 1048, "count": 17 },
+        { "startOffset": 1037, "endOffset": 1042, "count": 6 },
+        { "startOffset": 1043, "endOffset": 1048, "count": 11 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fn",
+      "ranges": [
+        { "startOffset": 1207, "endOffset": 7065, "count": 1 },
+        { "startOffset": 6951, "endOffset": 7011, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 1476, "endOffset": 1910, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 1963, "endOffset": 2490, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 2545, "endOffset": 2717, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 2774, "endOffset": 2949, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 3002, "endOffset": 3116, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 3175, "endOffset": 3603, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 3654, "endOffset": 4062, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 4130, "endOffset": 4641, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [
+        { "startOffset": 4712, "endOffset": 5450, "count": 1 },
+        { "startOffset": 5104, "endOffset": 5286, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 5506, "endOffset": 5964, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 6042, "endOffset": 6886, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "fn",
+      "ranges": [
+        { "startOffset": 7178, "endOffset": 9204, "count": 1 },
+        { "startOffset": 8919, "endOffset": 8989, "count": 0 },
+        { "startOffset": 9076, "endOffset": 9140, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 7594, "endOffset": 7990, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 8047, "endOffset": 8281, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 8342, "endOffset": 8491, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 8545, "endOffset": 8832, "count": 1 }],
+      "isBlockCoverage": true
+    }
+  ]
+}

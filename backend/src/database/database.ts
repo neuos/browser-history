@@ -260,14 +260,14 @@ export class Database {
     if (deviceId) {
       stmt = this.db.prepare(`
         SELECT id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum
-        FROM sync_events WHERE timestamp > ? AND device_id != ?
+        FROM sync_events WHERE timestamp >= ? AND device_id != ?
         ORDER BY timestamp ASC
       `)
       rows = stmt.all(since, deviceId) as SyncEventRow[]
     } else {
       stmt = this.db.prepare(`
         SELECT id, device_id, timestamp, event_type, entity_type, entity_id, data, checksum
-        FROM sync_events WHERE timestamp > ?
+        FROM sync_events WHERE timestamp >= ?
         ORDER BY timestamp ASC
       `)
       rows = stmt.all(since) as SyncEventRow[]

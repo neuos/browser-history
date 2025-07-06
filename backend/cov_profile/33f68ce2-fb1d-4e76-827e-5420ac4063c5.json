@@ -1,0 +1,66 @@
+{
+  "scriptId": "364",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/config/environment.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 5460, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<static_initializer>",
+      "ranges": [{ "startOffset": 237, "endOffset": 260, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [{ "startOffset": 264, "endOffset": 271, "count": 0 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "EnvironmentConfig",
+      "ranges": [{ "startOffset": 275, "endOffset": 347, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "initialize",
+      "ranges": [{ "startOffset": 435, "endOffset": 600, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getInstance",
+      "ranges": [{ "startOffset": 673, "endOffset": 882, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "get",
+      "ranges": [{ "startOffset": 976, "endOffset": 1737, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAllConfig",
+      "ranges": [{ "startOffset": 1806, "endOffset": 1941, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "logConfiguration",
+      "ranges": [{ "startOffset": 2016, "endOffset": 2505, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "loadAndValidateEnvironment",
+      "ranges": [{ "startOffset": 2567, "endOffset": 3283, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "logMissingVariables",
+      "ranges": [{ "startOffset": 3362, "endOffset": 3983, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateExampleEnvFile",
+      "ranges": [{ "startOffset": 4054, "endOffset": 5457, "count": 0 }],
+      "isBlockCoverage": false
+    }
+  ]
+}

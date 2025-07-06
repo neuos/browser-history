@@ -1,0 +1,150 @@
+{
+  "scriptId": "336",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/database/database.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 10856, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [{ "startOffset": 132, "endOffset": 134, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "Database",
+      "ranges": [
+        { "startOffset": 138, "endOffset": 551, "count": 1 },
+        { "startOffset": 181, "endOffset": 222, "count": 0 },
+        { "startOffset": 343, "endOffset": 452, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "init",
+      "ranges": [{ "startOffset": 554, "endOffset": 672, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "createTables",
+      "ranges": [{ "startOffset": 675, "endOffset": 3027, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "runMigrations",
+      "ranges": [
+        { "startOffset": 3030, "endOffset": 4407, "count": 1 },
+        { "startOffset": 3366, "endOffset": 4272, "count": 0 },
+        { "startOffset": 4279, "endOffset": 4403, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 3301, "endOffset": 3333, "count": 4 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "registerDevice",
+      "ranges": [{ "startOffset": 4433, "endOffset": 4677, "count": 2 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getDevice",
+      "ranges": [{ "startOffset": 4680, "endOffset": 5040, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getAllDevices",
+      "ranges": [{ "startOffset": 5043, "endOffset": 5393, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 5232, "endOffset": 5387, "count": 2 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "updateDeviceLastSeen",
+      "ranges": [{ "startOffset": 5396, "endOffset": 5547, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "deleteDevice",
+      "ranges": [{ "startOffset": 5550, "endOffset": 5737, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "addSyncEvent",
+      "ranges": [{ "startOffset": 5768, "endOffset": 6191, "count": 107 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getSyncEvents",
+      "ranges": [
+        { "startOffset": 6194, "endOffset": 7106, "count": 5 },
+        { "startOffset": 6273, "endOffset": 6549, "count": 2 },
+        { "startOffset": 6549, "endOffset": 6802, "count": 3 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 6823, "endOffset": 7100, "count": 61 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "upsertHistoryNode",
+      "ranges": [
+        { "startOffset": 7133, "endOffset": 7536, "count": 57 },
+        { "startOffset": 7467, "endOffset": 7474, "count": 55 },
+        { "startOffset": 7523, "endOffset": 7530, "count": 56 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getHistoryNodes",
+      "ranges": [
+        { "startOffset": 7539, "endOffset": 8607, "count": 9 },
+        { "startOffset": 7964, "endOffset": 8268, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 8289, "endOffset": 8601, "count": 110 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "upsertPage",
+      "ranges": [{ "startOffset": 8631, "endOffset": 8997, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPage",
+      "ranges": [{ "startOffset": 9000, "endOffset": 9514, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getPages",
+      "ranges": [{ "startOffset": 9517, "endOffset": 10175, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "updateSyncState",
+      "ranges": [{ "startOffset": 10205, "endOffset": 10451, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "getSyncState",
+      "ranges": [{ "startOffset": 10454, "endOffset": 10816, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "close",
+      "ranges": [{ "startOffset": 10819, "endOffset": 10853, "count": 0 }],
+      "isBlockCoverage": false
+    }
+  ]
+}

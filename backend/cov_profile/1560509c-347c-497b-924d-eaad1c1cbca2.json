@@ -1,0 +1,88 @@
+{
+  "scriptId": "337",
+  "url": "file:///Users/one/src/github/browser-history/backend/src/config/environment.ts",
+  "functions": [
+    {
+      "functionName": "",
+      "ranges": [{ "startOffset": 0, "endOffset": 5460, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<static_initializer>",
+      "ranges": [{ "startOffset": 237, "endOffset": 260, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "<instance_members_initializer>",
+      "ranges": [{ "startOffset": 264, "endOffset": 271, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "EnvironmentConfig",
+      "ranges": [{ "startOffset": 275, "endOffset": 347, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "initialize",
+      "ranges": [{ "startOffset": 435, "endOffset": 600, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getInstance",
+      "ranges": [
+        { "startOffset": 673, "endOffset": 882, "count": 6 },
+        { "startOffset": 727, "endOffset": 838, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "get",
+      "ranges": [
+        { "startOffset": 976, "endOffset": 1737, "count": 4 },
+        { "startOffset": 1111, "endOffset": 1197, "count": 0 },
+        { "startOffset": 1320, "endOffset": 1527, "count": 2 },
+        { "startOffset": 1389, "endOffset": 1500, "count": 0 },
+        { "startOffset": 1527, "endOffset": 1733, "count": 2 },
+        { "startOffset": 1565, "endOffset": 1700, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "getAllConfig",
+      "ranges": [{ "startOffset": 1806, "endOffset": 1941, "count": 1 }],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "logConfiguration",
+      "ranges": [
+        { "startOffset": 2016, "endOffset": 2505, "count": 1 },
+        { "startOffset": 2205, "endOffset": 2501, "count": 6 },
+        { "startOffset": 2366, "endOffset": 2436, "count": 2 },
+        { "startOffset": 2436, "endOffset": 2495, "count": 4 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "loadAndValidateEnvironment",
+      "ranges": [
+        { "startOffset": 2567, "endOffset": 3283, "count": 1 },
+        { "startOffset": 2809, "endOffset": 3095, "count": 6 },
+        { "startOffset": 2881, "endOffset": 2919, "count": 2 },
+        { "startOffset": 2919, "endOffset": 3089, "count": 4 },
+        { "startOffset": 3047, "endOffset": 3089, "count": 0 },
+        { "startOffset": 3124, "endOffset": 3192, "count": 0 }
+      ],
+      "isBlockCoverage": true
+    },
+    {
+      "functionName": "logMissingVariables",
+      "ranges": [{ "startOffset": 3362, "endOffset": 3983, "count": 0 }],
+      "isBlockCoverage": false
+    },
+    {
+      "functionName": "generateExampleEnvFile",
+      "ranges": [{ "startOffset": 4054, "endOffset": 5457, "count": 0 }],
+      "isBlockCoverage": false
+    }
+  ]
+}
