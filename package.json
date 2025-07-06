@@ -1,0 +1,32 @@
+{
+  "name": "browser-history",
+  "version": "1.0.0",
+  "description": "A cross-device browser history synchronization system consisting of a browser extension and a backend server.",
+  "main": "index.js",
+  "scripts": {
+    "build:extension": "cd extension && bun run build",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
+    "test:build": "bun run build:extension && bun run test:e2e",
+    "test": "bun run test:build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neuos/browser-history.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/neuos/browser-history/issues"
+  },
+  "homepage": "https://github.com/neuos/browser-history#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.53.2",
+    "playwright": "^1.53.2"
+  }
+}
