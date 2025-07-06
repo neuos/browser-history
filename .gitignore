@@ -32,3 +32,10 @@ backend/.env.local
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright test artifacts
+/test-results/
+/playwright-report/
+/playwright/.cache/
+debug-*.png
+test-setup.sh

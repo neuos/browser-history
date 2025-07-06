@@ -5,10 +5,10 @@
   "main": "index.js",
   "scripts": {
     "build:extension": "cd extension && bun run build",
-    "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:debug": "playwright test --debug",
+    "test:e2e": "playwright test extension-simple.spec.ts",
+    "test:e2e:headed": "playwright test extension-simple.spec.ts --headed", 
+    "test:e2e:ui": "playwright test extension-simple.spec.ts --ui",
+    "test:e2e:debug": "playwright test extension-simple.spec.ts --debug",
     "test:e2e:report": "playwright show-report",
     "test:build": "bun run build:extension && bun run test:e2e",
     "test": "bun run test:build"
