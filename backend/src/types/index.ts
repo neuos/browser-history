@@ -3,7 +3,6 @@
 export interface Device {
   deviceId: string
   deviceName: string
-  publicKey: string
   createdAt: number
   lastSeen: number
 }

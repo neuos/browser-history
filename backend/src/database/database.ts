@@ -6,7 +6,6 @@ import { EnvironmentConfig } from '../config/environment.ts';
 type DeviceRow = {
   device_id: string
   device_name: string
-  public_key: string
   created_at: number
   last_seen: number
 }
@@ -72,6 +71,7 @@ export class Database {
 
   init() {
     this.createTables()
+    this.runMigrations()
     console.log('✅ Database tables created/verified')
   }
 
@@ -81,7 +81,6 @@ export class Database {
       CREATE TABLE IF NOT EXISTS devices (
         device_id TEXT PRIMARY KEY,
         device_name TEXT NOT NULL,
-        public_key TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         last_seen INTEGER NOT NULL
       )
@@ -150,17 +149,54 @@ export class Database {
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_history_url ON history_nodes(url)')
   }
 
+  private runMigrations() {
+    // Migration: Remove public_key column from devices table if it exists
+    try {
+      // Check if public_key column exists
+      const tableInfo = this.db.prepare("PRAGMA table_info(devices)").all() as any[]
+      const hasPublicKeyColumn = tableInfo.some(col => col.name === 'public_key')
+      
+      if (hasPublicKeyColumn) {
+        console.log('🔄 Migrating devices table: removing public_key column')
+        
+        // SQLite doesn't support DROP COLUMN, so we need to recreate the table
+        this.db.exec(`
+          -- Create new devices table without public_key
+          CREATE TABLE devices_new (
+            device_id TEXT PRIMARY KEY,
+            device_name TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            last_seen INTEGER NOT NULL
+          );
+          
+          -- Copy data from old table to new table
+          INSERT INTO devices_new (device_id, device_name, created_at, last_seen)
+          SELECT device_id, device_name, created_at, last_seen FROM devices;
+          
+          -- Drop old table and rename new table
+          DROP TABLE devices;
+          ALTER TABLE devices_new RENAME TO devices;
+        `)
+        
+        console.log('✅ Migration completed: public_key column removed')
+      }
+    } catch (error) {
+      console.error('Migration error:', error)
+      // Continue anyway - the table might not exist yet
+    }
+  }
+
   // Device operations
   registerDevice(device: Device): void {
     this.db.prepare(`
-      INSERT OR REPLACE INTO devices (device_id, device_name, public_key, created_at, last_seen)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(device.deviceId, device.deviceName, device.publicKey, device.createdAt, device.lastSeen)
+      INSERT OR REPLACE INTO devices (device_id, device_name, created_at, last_seen)
+      VALUES (?, ?, ?, ?)
+    `).run(device.deviceId, device.deviceName, device.createdAt, device.lastSeen)
   }
 
   getDevice(deviceId: string): Device | undefined {
     const row = this.db.prepare(`
-      SELECT device_id, device_name, public_key, created_at, last_seen
+      SELECT device_id, device_name, created_at, last_seen
       FROM devices WHERE device_id = ?
     `).get(deviceId) as DeviceRow | undefined
     
@@ -169,7 +205,6 @@ export class Database {
     return {
       deviceId: row.device_id,
       deviceName: row.device_name,
-      publicKey: row.public_key,
       createdAt: row.created_at,
       lastSeen: row.last_seen,
     }
@@ -177,14 +212,13 @@ export class Database {
 
   getAllDevices(): Device[] {
     const rows = this.db.prepare(`
-      SELECT device_id, device_name, public_key, created_at, last_seen
+      SELECT device_id, device_name, created_at, last_seen
       FROM devices ORDER BY last_seen DESC
     `).all() as DeviceRow[]
     
     return rows.map((row: DeviceRow) => ({
       deviceId: row.device_id,
       deviceName: row.device_name,
-      publicKey: row.public_key,
       createdAt: row.created_at,
       lastSeen: row.last_seen,
     }))

@@ -99,7 +99,7 @@ export function authRoutes(db: Database) {
   app.post("/register-device", async (c) => {
     try {
       const body = await c.req.json();
-      const { deviceName, publicKey, secret } = body;
+      const { deviceName, secret } = body;
 
       // Verify shared secret
       const sharedSecret = EnvironmentConfig.get("SHARED_SECRET");
@@ -108,9 +108,9 @@ export function authRoutes(db: Database) {
         return c.json({ error: "Invalid shared secret" }, 401);
       }
 
-      if (!deviceName || !publicKey) {
+      if (!deviceName) {
         return c.json(
-          { error: "Device name and public key are required" },
+          { error: "Device name is required" },
           400,
         );
       }
@@ -122,7 +122,6 @@ export function authRoutes(db: Database) {
       const device: Device = {
         deviceId,
         deviceName,
-        publicKey,
         createdAt: now,
         lastSeen: now,
       };

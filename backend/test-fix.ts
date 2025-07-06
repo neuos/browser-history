@@ -33,7 +33,6 @@ console.log('Registering sender device...')
 db.registerDevice({
   deviceId: "sender-device-456",
   deviceName: "Test Sender Device",
-  publicKey: "test-key",
   createdAt: Date.now(),
   lastSeen: Date.now()
 })

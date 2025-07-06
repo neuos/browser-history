@@ -23,7 +23,7 @@ echo
 echo "2. Testing device registration..."
 DEVICE_RESPONSE=$(curl -s -X POST http://localhost:8000/auth/register-device \
   -H "Content-Type: application/json" \
-  -d '{"deviceName": "debug-device", "publicKey": "dummy-key", "secret": "secret"}')
+  -d '{"deviceName": "debug-device", "secret": "secret"}')
 
 if echo "$DEVICE_RESPONSE" | jq -e '.deviceId' > /dev/null; then
     echo "✅ Device registration works"

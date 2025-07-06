@@ -52,7 +52,6 @@ const registerResponse = await fetch('http://localhost:8000/auth/register-device
   },
   body: JSON.stringify({
     deviceName: 'Test Device',
-    publicKey: 'test-key',
     secret: 'secret',
   }),
 })

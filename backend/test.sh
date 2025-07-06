@@ -5,7 +5,7 @@
 set -e
 
 SERVER_URL="http://localhost:8000"
-SHARED_SECRET="insecure-test-secret"
+SHARED_SECRET="secret"
 DEVICE_NAME="Test Device"
 
 echo "🧪 Testing History Sync Backend"
@@ -23,7 +23,6 @@ REGISTER_RESPONSE=$(curl -s -X POST "$SERVER_URL/auth/register-device" \
   -H "Content-Type: application/json" \
   -d "{
     \"deviceName\": \"$DEVICE_NAME\",
-    \"publicKey\": \"test-public-key\",
     \"secret\": \"$SHARED_SECRET\"
   }")
 

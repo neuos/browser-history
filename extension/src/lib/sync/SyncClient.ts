@@ -106,7 +106,6 @@ export class SyncClient {
         },
         body: JSON.stringify({
           deviceName,
-          publicKey: 'dummy-key', // For now, we'll use a dummy key
           secret: sharedSecret,
         }),
       })
