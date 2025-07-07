@@ -17,6 +17,10 @@ stats-*.json
 .wxt
 web-ext.config.ts
 
+# Generated extension icons (built from SVG)
+extension/public/icon/
+extension/public/icon-dark/
+
 # Backend data
 backend/data/
 backend/.env
