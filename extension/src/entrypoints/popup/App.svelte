@@ -1,6 +1,7 @@
 <script lang="ts">
   import HistoryList from '@/components/HistoryList.svelte';
   import { popupSyncService } from '@/lib/sync/PopupSyncService';
+  import { detectSystemTheme, listenForThemeChanges } from '@/lib/theme';
   import { onMount, onDestroy } from 'svelte';
   import type { DeviceInfo, SyncStatus } from '@/lib/sync/types';
 
@@ -9,6 +10,7 @@
   let deviceInfo: DeviceInfo | null = null;
   let syncStatus: SyncStatus | null = null;
   let statusRefreshInterval: ReturnType<typeof setInterval> | null = null;
+  let themeCleanup: (() => void) | null = null;
   
   // Reactive status for UI
   $: statusColor = !isConfigured ? '#6c757d' : (!syncStatus?.isConnected ? '#ffc107' : '#28a745');
@@ -26,6 +28,41 @@
     // Initialize sync service and load configuration
     await popupSyncService.initialize();
     await updateSyncStatus();
+    
+    // Detect and send theme to background script
+    try {
+      const isDark = detectSystemTheme();
+      console.log('Popup: Detected theme:', isDark ? 'dark' : 'light');
+      
+      // Store theme preference
+      await browser.storage.local.set({ currentTheme: isDark ? 'dark' : 'light' });
+      
+      await browser.runtime.sendMessage({
+        type: 'THEME_DETECTED',
+        payload: { isDark }
+      });
+    } catch (error) {
+      console.warn('Popup: Failed to send theme detection:', error);
+    }
+    
+    // Listen for theme changes
+    const cleanup = listenForThemeChanges(async (isDark) => {
+      console.log('Popup: Theme changed to:', isDark ? 'dark' : 'light');
+      try {
+        // Store theme preference
+        await browser.storage.local.set({ currentTheme: isDark ? 'dark' : 'light' });
+        
+        await browser.runtime.sendMessage({
+          type: 'THEME_DETECTED',
+          payload: { isDark }
+        });
+      } catch (error) {
+        console.warn('Popup: Failed to send theme change:', error);
+      }
+    });
+    
+    // Store cleanup function for onDestroy
+    themeCleanup = cleanup;
     
     // Set default device name if not configured
     if (!isConfigured && !deviceName) {
@@ -55,6 +92,12 @@
   onDestroy(() => {
     if (statusRefreshInterval) {
       clearInterval(statusRefreshInterval);
+    }
+    
+    // Call theme cleanup function if it exists
+    if (themeCleanup) {
+      themeCleanup();
+      themeCleanup = null;
     }
   });
 
@@ -130,7 +173,7 @@
 <main>
   <!-- Top header with sync status button -->
   <div class="header">
-    <h2>Browser History</h2>
+    <h1>Browser History</h1>
     <button 
       class="sync-status-btn" 
       on:click={toggleSyncStatus}

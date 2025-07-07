@@ -29,6 +29,45 @@ async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' 
 export default defineBackground(() => {
   console.log('Background: defineBackground called');
   
+  // Theme-aware icon functionality
+  const updateIconForTheme = async (isDark: boolean) => {
+    try {
+      const iconPrefix = isDark ? 'icon-dark' : 'icon';
+      
+      console.log('Background: Setting icon for', isDark ? 'dark' : 'light', 'theme');
+      
+      await browser.action.setIcon({
+        path: {
+          '16': `${iconPrefix}/16.png`,
+          '32': `${iconPrefix}/32.png`,
+          '48': `${iconPrefix}/48.png`,
+          '96': `${iconPrefix}/96.png`,
+          '128': `${iconPrefix}/128.png`
+        }
+      });
+      
+      console.log('Background: Icon updated successfully');
+    } catch (error) {
+      console.warn('Background: Failed to set theme icon:', error);
+    }
+  };
+
+  // Initialize theme detection
+  const initializeTheme = async () => {
+    try {
+      // Check stored theme preference
+      const stored = await browser.storage.local.get(['currentTheme']);
+      const isDark = stored.currentTheme === 'dark';
+      console.log('Background: Initializing with stored theme:', stored.currentTheme || 'default(light)');
+      updateIconForTheme(isDark);
+    } catch (error) {
+      console.warn('Background: Failed to load stored theme, using default light theme:', error);
+      updateIconForTheme(false);
+    }
+  };
+  
+  initializeTheme();
+  
   (async () => {
     await initializeDeviceID();
     console.log('Background: Browser history extension started');
@@ -112,6 +151,14 @@ export default defineBackground(() => {
     // Handle SPA navigation events from content script
     browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('Background: Message received:', message.type);
+      
+      // Handle theme detection from offscreen document or content scripts
+      if (message.type === 'THEME_DETECTED') {
+        const { isDark } = message.payload;
+        console.log('Background: Theme detected:', isDark ? 'dark' : 'light');
+        updateIconForTheme(isDark);
+        return false; // No async response needed
+      }
       
       if (message.type === SPA_URL_CHANGE && sender.tab?.id) {
         // Handle async operation without blocking
