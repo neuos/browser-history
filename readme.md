@@ -45,7 +45,7 @@ deno task dev
 
 ```bash
 cd extension
-bun install  # or bun install
+bun install
 bun run dev
 ```
 
@@ -74,7 +74,7 @@ Extension ←→ WebSocket/HTTP ←→ Backend Server ←→ SQLite Database
 
 - Device-based authentication with JWT tokens
 - Shared secret for initial device registration
-- HTTPS/WSS transport encryption
+- HTTPS transport encryption
 - No user accounts needed (personal use)
 
 ## Development
@@ -115,5 +115,4 @@ Simply open the VS Code Command Palette (`Cmd+Shift+P` on macOS) and type "Debug
 The backend is designed to run on your personal server using Docker Compose for easy management and persistence.
 
 ## License
-
-MIT - For personal use.
+private use only

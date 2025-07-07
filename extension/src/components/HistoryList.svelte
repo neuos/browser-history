@@ -138,8 +138,6 @@
 </script>
 
 <div class="history-container">
-  <h1>Browsing History</h1>
-
   <div class="controls">
     <input
       type="text"
