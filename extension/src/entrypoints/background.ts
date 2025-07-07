@@ -10,6 +10,22 @@ import type {
   BackgroundToPopupMessage 
 } from "@/lib/sync/messages";
 
+// Utility function to broadcast history updates to popup windows
+async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' | 'manual_refresh') {
+  console.log('Background: Broadcasting HISTORY_UPDATED message, reason:', reason);
+  
+  try {
+    // Send message to all connected tabs/popups
+    await browser.runtime.sendMessage({
+      type: 'HISTORY_UPDATED',
+      payload: { reason }
+    });
+  } catch (error) {
+    console.log('Background: Error broadcasting message (popup might not be open):', error);
+    // This is normal - popup might not be open
+  }
+}
+
 export default defineBackground(() => {
   console.log('Background: defineBackground called');
   
@@ -49,6 +65,9 @@ export default defineBackground(() => {
           } else {
             console.log('Background: Sync not configured, skipping history node sync')
           }
+          
+          // Notify popup that new history has been created
+          broadcastHistoryUpdated('manual_refresh');
         },
         onPageCreated: async (page) => {
           console.log('Background: onPageCreated callback triggered for:', page.url)
@@ -162,6 +181,10 @@ export default defineBackground(() => {
               type: 'SETUP_SYNC_RESPONSE',
               payload: { success: true, deviceInfo }
             })
+            
+            // Notify popup that sync has been set up and history might be updated
+            console.log('Background: Broadcasting HISTORY_UPDATED message after sync setup')
+            broadcastHistoryUpdated('sync_complete')
           })
           .catch(error => {
             console.error('Background: Setup sync failed:', error)
@@ -254,6 +277,10 @@ export default defineBackground(() => {
               type: 'PERFORM_FULL_SYNC_RESPONSE',
               payload: { success: true }
             })
+            
+            // Notify popup that history has been updated after sync
+            console.log('Background: Broadcasting HISTORY_UPDATED message after sync completion')
+            broadcastHistoryUpdated('sync_complete')
           })
           .catch(error => {
             console.error('Background: performFullSync failed:', error)

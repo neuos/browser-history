@@ -123,6 +123,22 @@
 
   onMount(() => {
     loadHistoryData();
+    
+    // Listen for history update messages from background script
+    const messageListener = (message: any) => {
+      if (message.type === 'HISTORY_UPDATED') {
+        console.log('HistoryList: Received HISTORY_UPDATED message, reason:', message.payload?.reason);
+        // Reload history data when background script notifies us of updates
+        loadHistoryData();
+      }
+    };
+    
+    browser.runtime.onMessage.addListener(messageListener);
+    
+    // Cleanup listener when component is destroyed
+    return () => {
+      browser.runtime.onMessage.removeListener(messageListener);
+    };
   });
 
   function handleSearch() {

@@ -89,6 +89,13 @@ export interface PerformFullSyncResponse extends SyncMessage {
   }
 }
 
+export interface HistoryUpdatedMessage extends SyncMessage {
+  type: 'HISTORY_UPDATED'
+  payload: {
+    reason: 'sync_complete' | 'initial_load' | 'manual_refresh'
+  }
+}
+
 export type PopupToBackgroundMessage = 
   | SetupSyncMessage
   | GetSyncStatusMessage
@@ -104,3 +111,4 @@ export type BackgroundToPopupMessage =
   | SetupSyncResponse
   | ClearConfigurationResponse
   | PerformFullSyncResponse
+  | HistoryUpdatedMessage

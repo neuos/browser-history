@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures';
+import { ExtensionManager } from './pages/ExtensionManager';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -144,5 +145,64 @@ test.describe('Browser History Extension - Simplified E2E', () => {
     // The status should show "Connected" not "Disconnected"
     expect(status.text).toContain('Connected');
     expect(status.text).not.toContain('Disconnected');
+  });
+
+  test('should update history list automatically after sync setup', async ({ popupPage, extensionManager, backendApi }) => {
+    console.log('Testing automatic history list update after sync setup...');
+    
+    // Step 1: Create history data on another device (simulate by adding directly to backend)
+    console.log('Creating test history data on backend...');
+    
+    // First register a different device to simulate cross-device sync
+    const testHistory = {
+      id: 'test-history-' + Date.now(),
+      deviceId: 'simulated-device-id',
+      url: 'https://test-sync-example.com',
+      tabId: 999,
+      timestamp: Date.now(),
+      navigationSourceId: null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+    
+    // Step 2: Set up sync for our test device
+    console.log('Setting up sync...');
+    await popupPage.setupSync(
+      'http://localhost:8000',
+      'Test Device - Auto Update',
+      'secret'
+    );
+    
+    // Step 3: Get initial history list count
+    console.log('Getting initial history count...');
+    const initialHistoryItems = await popupPage.getHistoryItems();
+    const initialCount = initialHistoryItems.length;
+    console.log('Initial history count:', initialCount);
+    
+    // Step 4: Visit a test page to generate local history
+    console.log('Visiting test page to generate history...');
+    await extensionManager.visitPage('https://example.com/sync-test');
+    
+    // Step 5: Wait for sync and check if history list updated automatically
+    console.log('Waiting for sync to complete...');
+    await popupPage.page.waitForTimeout(5000);
+    
+    // Step 6: Check if history list has updated (should include the new local history)
+    console.log('Checking for updated history list...');
+    const updatedHistoryItems = await popupPage.getHistoryItems();
+    const updatedCount = updatedHistoryItems.length;
+    console.log('Updated history count:', updatedCount);
+    
+    // Test the fix: history list should now update automatically
+    console.log('Testing the fix: history should update automatically after sync...');
+    expect(updatedCount).toBeGreaterThan(initialCount);
+    
+    // Verify the new history item is there
+    const hasNewItem = updatedHistoryItems.some(item => 
+      item.url.includes('example.com/sync-test')
+    );
+    expect(hasNewItem).toBe(true);
+    
+    console.log('✅ Test passed: History list updates automatically after sync!');
   });
 });
