@@ -34,16 +34,12 @@ test.describe('Browser History Extension - Core Functionality', () => {
   });
 
   test('should capture and display browsing history', async ({ popupPage, extensionManager, extensionId }) => {
-    console.log('Starting history capture test...');
-    
-    // Navigate to popup to ensure clean state
     await popupPage.goto(extensionId);
     
-    // First, set up sync if not already configured
+    // Set up sync if not already configured
     try {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
-        console.log('Setting up sync first...');
         await popupPage.setupSync(
           'http://localhost:8000',
           'Test Device - History Test',
@@ -51,43 +47,31 @@ test.describe('Browser History Extension - Core Functionality', () => {
         );
       }
     } catch (error) {
-      console.log('Sync setup error (might already be configured):', error);
+      // Sync might already be configured
     }
     
-    // Visit multiple test pages to ensure at least one is captured
-    console.log('Visiting test pages...');
+    // Visit test pages
     await extensionManager.visitPage('https://example.com');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    await extensionManager.visitPage('https://example.org');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    await extensionManager.visitPage('https://httpbin.org/get');
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Wait even longer for the extension to capture and sync the history
-    console.log('Waiting for history to be captured and synced...');
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Check that history was captured
-    console.log('Checking for captured history...');
+    await extensionManager.visitPage('https://example.org');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    await extensionManager.visitPage('https://httpbin.org/get');
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Wait for history to be captured and synced
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
     const historyItems = await popupPage.getHistoryItems();
     
-    console.log('History items found:', historyItems);
-    
-    // If no history was captured, this might be a test environment limitation
-    // Let's make the test more lenient for now
+    // Test environment might have limitations with history capture
     if (historyItems.length === 0) {
-      console.log('No history captured - this might be a test environment limitation');
-      console.log('Skipping assertions for now...');
-      // Just pass the test with a warning
-      return;
+      return; // Skip assertions for test environment limitations
     }
     
-    // Should have at least one item
     expect(historyItems.length).toBeGreaterThan(0);
     
-    // Should contain one of the test entries
     const hasTestEntry = historyItems.some(item => 
       item.url.includes('example.com') || 
       item.url.includes('example.org') ||
@@ -97,74 +81,59 @@ test.describe('Browser History Extension - Core Functionality', () => {
   });
 
   test('should handle sync disconnect', async ({ popupPage }) => {
-    // First ensure sync is configured
-    console.log('Ensuring sync is configured before disconnect test...');
+    // Ensure sync is configured before disconnect test
     const isConfigured = await popupPage.isConfigured();
     
     if (!isConfigured) {
-      console.log('Setting up sync first...');
       await popupPage.setupSync(
         'http://localhost:8000',
         'Test Device - Disconnect Test',
         'secret'
       );
       
-      // Verify it's now configured
       const setupStatus = await popupPage.getSyncStatus();
       expect(setupStatus.text).not.toContain('Not Configured');
     }
     
-    // Now try to disconnect
-    console.log('Attempting to disconnect...');
     await popupPage.disconnect();
     
-    // Verify it's disconnected
     const status = await popupPage.getSyncStatus();
     expect(status.text).toContain('Not Configured');
-    // Accept both hex and rgb color formats
     expect(status.color).toMatch(/(#6c757d|rgb\(108, 117, 125\))/);
   });
 
   test('should establish SSE connection after sync setup', async ({ popupPage }) => {
-    console.log('Testing SSE connection status...');
-    
-    // First, set up sync if not already configured
+    // Set up sync if not already configured
     try {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
-        console.log('Setting up sync first...');
         await popupPage.setupSync(
           'http://localhost:8000',
-          'Test Device - History Test',
+          'Test Device - SSE Test',
           'secret'
         );
       }
     } catch (error) {
-      console.log('Sync setup error (might already be configured):', error);
+      // Sync might already be configured
     }
-    // Wait a moment for the connection to establish
+    
+    // Wait for connection to establish
     await popupPage.page.waitForTimeout(3000);
     
-    // Check connection status
     const status = await popupPage.getSyncStatus();
-    console.log('Current SSE connection status:', status.text);
     
-    // Take a screenshot for debugging
+    // Take screenshot for debugging if needed
     await popupPage.page.screenshot({ path: 'debug-sse-connection.png' });
     
-    // The status should show "Connected" not "Disconnected"
     expect(status.text).toContain('Connected');
     expect(status.text).not.toContain('Disconnected');
   });
 
   test('should update history list automatically after sync setup', async ({ popupPage, extensionManager, backendApi }) => {
-    console.log('Testing automatic history list update after sync setup...');
-  
-    // First, set up sync if not already configured
+    // Set up sync if not already configured
     try {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
-        console.log('Setting up sync first...');
         await popupPage.setupSync(
           'http://localhost:8000',
           'Test Device - Auto Update',
@@ -172,31 +141,23 @@ test.describe('Browser History Extension - Core Functionality', () => {
         );
       }
     } catch (error) {
-      console.log('Sync setup error (might already be configured):', error);
+      // Sync might already be configured
     }
     
-    // Step 3: Get initial history list count
-    console.log('Getting initial history count...');
+    // Get initial history list count
     const initialHistoryItems = await popupPage.getHistoryItems();
     const initialCount = initialHistoryItems.length;
-    console.log('Initial history count:', initialCount);
     
-    // Step 4: Visit a test page to generate local history
-    console.log('Visiting test page to generate history...');
+    // Visit a test page to generate local history
     await extensionManager.visitPage('https://example.com/sync-test');
     
-    // Step 5: Wait for sync and check if history list updated automatically
-    console.log('Waiting for sync to complete...');
+    // Wait for sync to complete
     await popupPage.page.waitForTimeout(1000);
     
-    // Step 6: Check if history list has updated (should include the new local history)
-    console.log('Checking for updated history list...');
+    // Check if history list has updated
     const updatedHistoryItems = await popupPage.getHistoryItems();
     const updatedCount = updatedHistoryItems.length;
-    console.log('Updated history count:', updatedCount);
     
-    // Test the fix: history list should now update automatically
-    console.log('Testing the fix: history should update automatically after sync...');
     expect(updatedCount).toBeGreaterThan(initialCount);
     
     // Verify the new history item is there
@@ -204,7 +165,5 @@ test.describe('Browser History Extension - Core Functionality', () => {
       item.url.includes('example.com/sync-test')
     );
     expect(hasNewItem).toBe(true);
-    
-    console.log('✅ Test passed: History list updates automatically after sync!');
   });
 });
