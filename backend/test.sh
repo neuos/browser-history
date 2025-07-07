@@ -12,6 +12,16 @@ echo "🧪 Testing History Sync Backend"
 echo "Server: $SERVER_URL"
 echo ""
 
+# Check if server is running first
+echo "0. Checking if server is running..."
+if ! curl -s --connect-timeout 5 "$SERVER_URL/health" > /dev/null; then
+  echo "❌ Server is not running at $SERVER_URL"
+  echo "Please start the backend server first with: deno task dev"
+  exit 1
+fi
+echo "✅ Server is running"
+echo ""
+
 # Test health endpoint
 echo "1. Testing health endpoint..."
 curl -s "$SERVER_URL/health" | jq '.' || echo "❌ Health check failed"

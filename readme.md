@@ -84,6 +84,32 @@ Both the extension and backend can be developed independently:
 - **Extension**: Hot-reload development server with WXT
 - **Backend**: Deno with watch mode for rapid iteration
 
+### VS Code Launch Configuration
+
+The project includes VS Code launch configurations for easy development without using the console:
+
+#### Quick Start Options
+
+- **🚀 Start Full Development Environment**: Launches both backend server and extension development simultaneously
+- **🚀 Start Backend Server**: Runs the backend with watch mode for hot-reload
+- **🧩 Start Extension Development**: Starts the extension development server
+
+#### Testing Options
+
+- **🧪 Run All Tests**: Executes backend unit tests and integration tests sequentially
+- **🧪 Run Backend Unit Tests**: Runs Deno unit tests
+- **🧪 Run Backend Integration Tests**: Runs integration test suite
+- **🧪 Run E2E Tests**: Runs Playwright end-to-end tests
+- **🧪 Run E2E Tests (Headed)**: Runs E2E tests with visible browser
+- **🐛 Debug E2E Tests**: Runs E2E tests in debug mode
+
+#### Debug Tools
+
+- **🔧 Debug Database**: Inspect database state and contents
+- **🔧 Debug Sync**: Debug synchronization processes
+
+Simply open the VS Code Command Palette (`Cmd+Shift+P` on macOS) and type "Debug: Select and Start Debugging" to see all available options.
+
 ## Deployment
 
 The backend is designed to run on your personal server using Docker Compose for easy management and persistence.
