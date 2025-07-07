@@ -18,8 +18,8 @@ stats-*.json
 web-ext.config.ts
 
 # Generated extension icons (built from SVG)
-extension/public/icon/
-extension/public/icon-dark/
+extension/public/icon/*.png
+extension/public/icon-dark/*.png
 
 # Backend data
 backend/data/
