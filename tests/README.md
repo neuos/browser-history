@@ -1,17 +1,52 @@
-# Browser History Extension - E2E Testing
+# Browser History Extension - Testing Suite
 
-This directory contains end-to-end tests for the Browser History extension using Playwright.
+This directory contains comprehensive tests for the Browser History extension using Playwright.
 
 ## Overview
 
-The E2E tests verify the complete functionality of the browser extension, including:
+The testing suite is organized into different categories to ensure complete coverage:
 
-- ✅ Extension loading and popup functionality
-- ✅ Sync configuration and setup
-- ✅ History capture from browsing
-- ✅ Cross-device history synchronization
-- ✅ Backend API integration
-- ✅ Multi-device scenarios
+### E2E Tests (`e2e/`)
+- ✅ **Core Extension Functionality** (`extension-core.spec.ts`)
+  - Extension loading and popup functionality
+  - Sync configuration and setup  
+  - History capture from browsing
+  - SSE connection establishment
+  - Automatic history list updates
+  - Sync disconnect handling
+
+- ✅ **Cross-Device Synchronization** (`cross-device-sync.spec.ts`)
+  - Real-time sync between multiple browser instances
+  - Immediate popup updates when sync events arrive
+  - Handling multiple sync events efficiently
+  - Multi-device scenario testing
+
+### Verification Tests (`verification/`)
+- ✅ **Implementation Verification** (`implementation-check.spec.ts`)
+  - Confirms that the sync callback mechanism is properly implemented
+  - Validates that the fix for immediate popup updates is in place
+  - Documents the flow of sync notifications
+
+## Sync Notification Fix
+
+The main fix implemented ensures that cross-browser sync events immediately update the popup UI without requiring the popup to be closed and reopened.
+
+### How the Fix Works
+1. **Device A** navigates to a new page
+2. **Device A** captures the history and syncs it to the server  
+3. **Device B** receives the sync event via polling or SSE
+4. **Device B** applies the sync event to its local storage
+5. **Device B** invokes the callback, which broadcasts `HISTORY_UPDATED`
+6. **Device B** popup (if open) receives `HISTORY_UPDATED` and reloads the history list
+7. **Device B** popup immediately shows the new history from Device A
+
+### Implementation Components
+- `SyncClient` accepts callbacks via `SyncClientCallbacks` interface
+- `SyncClient` invokes `onSyncEventsApplied` callback when events are processed
+- `SyncService` passes callbacks through to `SyncClient`
+- Background script uses `createSyncService` factory with callback
+- Background script broadcasts `HISTORY_UPDATED` when sync events are applied
+- Popup `HistoryList.svelte` listens for `HISTORY_UPDATED` and reloads history
 
 ## Prerequisites
 

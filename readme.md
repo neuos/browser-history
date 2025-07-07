@@ -61,6 +61,40 @@ Then load the extension in your browser from the `.output` directory.
 
 - [Backend Documentation](./backend/README.md) - Server setup, API, deployment
 - [Extension Documentation](./extension/README.md) - Extension development and usage
+- [Testing Documentation](./tests/README.md) - Comprehensive test suite documentation
+- [Test Suite Organization](./TEST_SUITE_ORGANIZATION.md) - Test structure and organization details
+
+## Testing
+
+The project includes a comprehensive test suite organized into different categories:
+
+### Test Structure
+```
+tests/
+├── e2e/                    # End-to-End Integration Tests
+│   ├── extension-core.spec.ts      # Core extension functionality
+│   └── cross-device-sync.spec.ts   # Cross-device synchronization
+└── verification/           # Implementation Verification Tests
+    └── implementation-check.spec.ts # Sync fix verification
+```
+
+### Running Tests
+```bash
+# Run all E2E tests
+bun run test:e2e
+
+# Run specific test suites
+bun run test:e2e tests/e2e/extension-core.spec.ts
+bun run test:e2e tests/e2e/cross-device-sync.spec.ts
+bun run test:e2e tests/verification/implementation-check.spec.ts
+```
+
+### Sync Notification Fix
+The test suite verifies the implemented fix that ensures cross-device sync events immediately update the popup UI without requiring the popup to be closed and reopened. This fix includes:
+
+- Callback mechanism in `SyncClient` for sync event notifications
+- Background script integration that broadcasts `HISTORY_UPDATED` events
+- Popup automatic refresh when sync events are received from other devices
 
 ## Architecture
 

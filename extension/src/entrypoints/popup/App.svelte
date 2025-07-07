@@ -82,11 +82,12 @@
     }
 
     // Refresh status periodically when configured
+    /*
     if (isConfigured) {
       statusRefreshInterval = setInterval(async () => {
         await updateSyncStatus();
       }, 5000); // Every 5 seconds
-    }
+    }*/
   });
 
   onDestroy(() => {
@@ -137,11 +138,13 @@
       showSyncStatus = false; // Close the panel after successful setup
       
       // Start refresh interval
+      /*
       if (isConfigured && !statusRefreshInterval) {
         statusRefreshInterval = setInterval(async () => {
           await updateSyncStatus();
         }, 5000);
       }
+      */
     } catch (error) {
       setupError = error instanceof Error ? error.message : 'Setup failed';
       console.error('Setup failed:', error);

@@ -2,12 +2,18 @@ import { SyncClient } from './SyncClient'
 import type { SyncEvent, DeviceInfo } from './types'
 import type { HistoryNode, Page } from '@/lib/HistoryTree/HistoryNode'
 
+export interface SyncServiceCallbacks {
+  onSyncEventsApplied?: (eventCount: number) => void;
+}
+
 export class SyncService {
   private syncClient: SyncClient
   private isInitialized = false
 
-  constructor() {
-    this.syncClient = new SyncClient()
+  constructor(callbacks: SyncServiceCallbacks = {}) {
+    this.syncClient = new SyncClient({
+      onSyncEventsApplied: callbacks.onSyncEventsApplied
+    })
   }
 
   async initialize(): Promise<void> {
@@ -197,5 +203,10 @@ export class SyncService {
   }
 }
 
-// Singleton instance
+// Factory function to create sync service with callbacks
+export function createSyncService(callbacks: SyncServiceCallbacks = {}): SyncService {
+  return new SyncService(callbacks)
+}
+
+// Default singleton instance (without callbacks)
 export const syncService = new SyncService()

@@ -4,7 +4,7 @@ import { PageRepositoryIndexedDB } from "@/lib/HistoryTree/PageRepositoryIndexed
 import { HistoryService } from "@/lib/HistoryTree/HistoryService";
 import { SPA_URL_CHANGE, PAGE_METADATA_EXTRACTED } from "@/message";
 import { Page, HistoryNode } from "@/lib/HistoryTree/HistoryNode";
-import { syncService } from "@/lib/sync/SyncService";
+import { createSyncService } from "@/lib/sync/SyncService";
 import type { 
   PopupToBackgroundMessage, 
   BackgroundToPopupMessage 
@@ -71,6 +71,14 @@ export default defineBackground(() => {
   (async () => {
     await initializeDeviceID();
     console.log('Background: Browser history extension started');
+
+    // Create sync service with callback to notify popup when sync events are applied
+    const syncService = createSyncService({
+      onSyncEventsApplied: (eventCount: number) => {
+        console.log('Background: Sync events applied from other devices:', eventCount);
+        broadcastHistoryUpdated('sync_complete');
+      }
+    });
 
     // Initialize sync service
     console.log('Background: Initializing sync service...');

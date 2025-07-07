@@ -18,17 +18,17 @@ export class DatabaseSingleton {
     }
 
     public async getDB(): Promise<IDBDatabase> {
-        console.log('DatabaseSingleton: Getting IndexedDB instance for:', this.DB_NAME);
-        console.log('DatabaseSingleton: Current db instance:', this.db ? 'exists' : 'null');
-        console.log('DatabaseSingleton: Registered schema builders:', this.schemaBuilders.length);
+        console.debug('DatabaseSingleton: Getting IndexedDB instance for:', this.DB_NAME);
+        console.debug('DatabaseSingleton: Current db instance:', this.db ? 'exists' : 'null');
+        console.debug('DatabaseSingleton: Registered schema builders:', this.schemaBuilders.length);
 
         if (this.db) {
-            console.log('DatabaseSingleton: Returning existing IndexedDB instance.');
+            console.debug('DatabaseSingleton: Returning existing IndexedDB instance.');
             return this.db;
         }
 
         return new Promise((resolve, reject) => {
-            console.log('DatabaseSingleton: Opening IndexedDB...');
+            console.debug('DatabaseSingleton: Opening IndexedDB...');
             const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
             request.onerror = () => {
@@ -38,8 +38,8 @@ export class DatabaseSingleton {
 
             request.onsuccess = () => {
                 this.db = request.result;
-                console.log('DatabaseSingleton: IndexedDB opened successfully:', this.DB_NAME);
-                console.log('DatabaseSingleton: Object stores in DB:', Array.from(this.db.objectStoreNames));
+                console.debug('DatabaseSingleton: IndexedDB opened successfully:', this.DB_NAME);
+                console.debug('DatabaseSingleton: Object stores in DB:', Array.from(this.db.objectStoreNames));
                 resolve(this.db);
             };
 
@@ -47,7 +47,7 @@ export class DatabaseSingleton {
                 const db = request.result;
                 console.log('DatabaseSingleton: onupgradeneeded event triggered for:', this.DB_NAME);
                 console.log('DatabaseSingleton: Old version:', event.oldVersion, 'New version:', event.newVersion);
-                console.log('DatabaseSingleton: Existing object stores before upgrade:', Array.from(db.objectStoreNames));
+                console.debug('DatabaseSingleton: Existing object stores before upgrade:', Array.from(db.objectStoreNames));
                 this.createSchema(db);
                 console.log('DatabaseSingleton: Object stores after schema creation:', Array.from(db.objectStoreNames));
             };
@@ -60,7 +60,7 @@ export class DatabaseSingleton {
         // Call all registered schema builders
         for (let i = 0; i < this.schemaBuilders.length; i++) {
             const builder = this.schemaBuilders[i];
-            console.log(`DatabaseSingleton: Applying schema builder ${i + 1}/${this.schemaBuilders.length}:`, builder.name || 'anonymous');
+            console.debug(`DatabaseSingleton: Applying schema builder ${i + 1}/${this.schemaBuilders.length}:`, builder.name || 'anonymous');
             try {
                 builder(db);
                 console.log(`DatabaseSingleton: Schema builder ${i + 1} completed successfully`);

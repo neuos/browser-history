@@ -4,6 +4,10 @@ import { PageRepositoryIndexedDB } from '@/lib/HistoryTree/PageRepositoryIndexed
 import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
 import { Page } from '@/lib/HistoryTree/HistoryNode'
 
+export interface SyncClientCallbacks {
+  onSyncEventsApplied?: (eventCount: number) => void;
+}
+
 export class SyncClient {
   private config: SyncConfig | null = null
   private deviceInfo: DeviceInfo | null = null
@@ -16,12 +20,14 @@ export class SyncClient {
   private successfulSyncs = 0
   private lastSyncTime = 0
   private lastDownloadTimestamp = 0
+  private callbacks: SyncClientCallbacks
   
   // Repository instances for direct access
   private historyRepository = new HistoryRepositoryIndexedDB()
   private pageRepository = new PageRepositoryIndexedDB()
 
-  constructor() {
+  constructor(callbacks: SyncClientCallbacks = {}) {
+    this.callbacks = callbacks
     // Don't load config in constructor - let it be loaded explicitly
   }
 
@@ -247,10 +253,22 @@ export class SyncClient {
       
       switch (message.type) {
         case 'sync_event':
-          this.applySyncEvent(message.data)
+          this.applySyncEvent(message.data).then(() => {
+            console.log('SSE: Applied sync event, notifying callback')
+            this.callbacks.onSyncEventsApplied?.(1)
+          }).catch(error => {
+            console.error('SSE: Failed to apply sync event:', error)
+          })
           break
         case 'sync_batch':
-          message.data.events.forEach((event: SyncEvent) => this.applySyncEvent(event))
+          const eventCount = message.data.events.length
+          Promise.all(message.data.events.map((event: SyncEvent) => this.applySyncEvent(event)))
+            .then(() => {
+              console.log('SSE: Applied sync batch, notifying callback:', eventCount)
+              this.callbacks.onSyncEventsApplied?.(eventCount)
+            }).catch(error => {
+              console.error('SSE: Failed to apply sync batch:', error)
+            })
           break
         case 'ping':
           // SSE doesn't need pong response - just log that we're alive
@@ -416,6 +434,12 @@ export class SyncClient {
         await this.applySyncEvent(event)
       }
       
+      // Notify about applied sync events
+      if (this.callbacks.onSyncEventsApplied) {
+        console.log('SyncClient: Notifying about applied sync events:', events.length)
+        this.callbacks.onSyncEventsApplied(events.length)
+      }
+      
       // Update the last download timestamp to the newest event's timestamp
       const newestTimestamp = Math.max(...events.map(e => e.timestamp))
       await this.saveLastDownloadTimestamp(newestTimestamp)
@@ -438,7 +462,7 @@ export class SyncClient {
       } else if (event.entityType === 'page') {
         await this.applyPageSyncEvent(event)
       } else {
-        console.warn('SyncClient: Unknown entity type in sync event:', event.entityType)
+        throw new Error(`Unknown entity type: ${event.entityType}`)
       }
     } catch (error) {
       console.error('SyncClient: Failed to apply sync event:', error)

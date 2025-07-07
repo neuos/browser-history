@@ -19,14 +19,10 @@ export class Debouncer {
     }, this.delay);
   }
 
-
   public stop(): void {
     this.clear();
     this.onStop();
   }
-
-
-
 
   private clear(): void {
     if (this.timer) {

@@ -58,10 +58,12 @@ export class ExtensionManager {
     const testPage = await this.context.newPage();
     
     try {
+      console.log(`Visiting page: ${url}`);
       await testPage.goto(url);
       await testPage.waitForLoadState('networkidle');
-      // Wait for extension to capture the navigation
-      await testPage.waitForTimeout(2000);
+      // Wait longer for extension to capture the navigation and process it
+      await testPage.waitForTimeout(3000);
+      console.log(`Successfully visited: ${url}`);
     } finally {
       await testPage.close();
     }
