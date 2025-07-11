@@ -200,16 +200,17 @@ Rewrite the current Deno/TypeScript backend in C# .NET 9 using Clean Architectur
   - [x] `GetHistoryRequest/Response`
   - [x] Search response models
 
-### **Device Feature** ✅ **COMPLETED**
+### **Page Feature** ✅ **COMPLETED**
+
 - [x] Commands:
-  - [x] `RegisterDeviceCommand` & Handler & Validator
-  - [x] `UpdateDeviceLastSeenCommand` & Handler & Validator
+  - [x] `CreateOrUpdatePageCommand` & Handler & Validator
+  - [x] `DeletePageCommand` & Handler & Validator
 - [x] Queries:
-  - [x] `GetDeviceByIdQuery` & Handler
-  - [x] `GetActiveDevicesQuery` & Handler
+  - [x] `GetPageByUrlQuery` & Handler
+  - [x] `GetPagesQuery` & Handler
 - [x] DTOs:
-  - [x] `DeviceDto` (in Common/Models/Dtos.cs)
-  - [x] Basic request/response models
+  - [x] `PageDto` & related models
+  - [x] Request/Response models
 
 ---
 
@@ -268,6 +269,11 @@ Rewrite the current Deno/TypeScript backend in C# .NET 9 using Clean Architectur
 - [x] `HistoryEndpoints.cs`:
   - [x] `GET /api/v1/history`
   - [x] `GET /api/v1/history/search`
+- [x] `PageEndpoints.cs`:
+  - [x] `GET /api/v1/pages`
+  - [x] `GET /api/v1/pages/by-url`
+  - [x] `POST /api/v1/pages`
+  - [x] `DELETE /api/v1/pages/by-url`
 - [x] `DeviceEndpoints.cs`:
   - [x] `GET /api/v1/devices`
   - [x] `GET /api/v1/devices/{deviceId}`
