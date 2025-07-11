@@ -5,3 +5,9 @@ TestResults/
 *.dll
 *.exe
 *.pdb
+
+# Database files
+data/
+*.db
+*.db-shm
+*.db-wal
