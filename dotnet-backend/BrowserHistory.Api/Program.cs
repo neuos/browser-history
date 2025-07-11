@@ -37,7 +37,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseSerilogRequestLogging();
+// Add custom middleware pipeline (correlation ID, exception handling, enhanced logging)
+app.UseCustomMiddleware();
+
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
