@@ -34,7 +34,6 @@ backend/.env.local
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
 
 # Playwright test artifacts
