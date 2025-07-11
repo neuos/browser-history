@@ -28,15 +28,15 @@ jobs:
       with:
         dotnet-version: '9.0.x'
     
+    - name: pwd
+      run: pwd && ls -Al
+
     - name: Restore dependencies
       run: dotnet restore
     
     - name: Build
       run: dotnet build --no-restore
-    
-    - name: pwd
-      run: pwd && ls -Al
-      
+
     - name: Test
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage"
     
