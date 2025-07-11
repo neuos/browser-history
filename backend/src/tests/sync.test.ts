@@ -321,8 +321,6 @@ Deno.test({
 
         db.addSyncEvent(syncEvent);
 
-        db.addSyncEvent(syncEvent);
-
         const historyNode: HistoryNode = {
           id: syncEvent.entityId,
           deviceId: syncEvent.deviceId,
