@@ -80,4 +80,67 @@ public class HistoryRepository : IHistoryRepository
             _context.HistoryNodes.Remove(historyNode);
         }
     }
+
+    public async Task<(IEnumerable<HistoryNode> Entries, int TotalCount)> GetHistoryEntriesAsync(
+        DateTime? startDate = null, 
+        DateTime? endDate = null, 
+        int skip = 0, 
+        int take = 100, 
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.HistoryNodes.AsQueryable();
+
+        // Apply date filters
+        if (startDate.HasValue)
+        {
+            query = query.Where(h => h.LastVisitedAt >= startDate.Value);
+        }
+
+        if (endDate.HasValue)
+        {
+            query = query.Where(h => h.LastVisitedAt <= endDate.Value);
+        }
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Apply pagination and ordering
+        var entries = await query
+            .OrderByDescending(h => h.LastVisitedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return (entries, totalCount);
+    }
+
+    public async Task<(IEnumerable<HistoryNode> Results, int TotalCount)> SearchHistoryAsync(
+        string searchTerm, 
+        int skip = 0, 
+        int take = 50, 
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            return (Enumerable.Empty<HistoryNode>(), 0);
+        }
+
+        var normalizedSearchTerm = searchTerm.ToLowerInvariant();
+        
+        var query = _context.HistoryNodes
+            .Where(h => h.Title.ToLower().Contains(normalizedSearchTerm) || 
+                       h.Url.Value.ToLower().Contains(normalizedSearchTerm));
+
+        // Get total count before pagination
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        // Apply pagination and ordering
+        var results = await query
+            .OrderByDescending(h => h.LastVisitedAt)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return (results, totalCount);
+    }
 }
