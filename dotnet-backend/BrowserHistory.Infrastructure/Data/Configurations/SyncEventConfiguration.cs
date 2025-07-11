@@ -1,4 +1,5 @@
 using BrowserHistory.Domain.Entities;
+using BrowserHistory.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -19,8 +20,16 @@ public class SyncEventConfiguration : IEntityTypeConfiguration<SyncEvent>
             .HasColumnName("Id")
             .IsRequired();
 
+        builder.Property(s => s.EntityId)
+            .HasColumnName("EntityId")
+            .IsRequired();
+
         builder.Property(s => s.DeviceId)
             .HasColumnName("DeviceId")
+            .IsRequired();
+
+        builder.Property(s => s.Timestamp)
+            .HasColumnName("Timestamp")
             .IsRequired();
 
         builder.Property(s => s.EventType)
@@ -28,31 +37,53 @@ public class SyncEventConfiguration : IEntityTypeConfiguration<SyncEvent>
             .HasConversion<int>()
             .IsRequired();
 
+        builder.Property(s => s.EntityType)
+            .HasColumnName("EntityType")
+            .HasConversion<int>()
+            .IsRequired();
+
+        builder.Property(s => s.EntityReference)
+            .HasColumnName("EntityReference")
+            .HasMaxLength(500)
+            .IsRequired();
+
+        builder.Property(s => s.Data)
+            .HasColumnName("Data")
+            .HasColumnType("TEXT")
+            .IsRequired();
+
+        builder.Property(s => s.Checksum)
+            .HasColumnName("Checksum")
+            .HasMaxLength(100)
+            .IsRequired();
+
         builder.Property(s => s.Metadata)
             .HasColumnName("Metadata")
             .HasMaxLength(1000);
 
-        builder.Property(s => s.Timestamp)
-            .HasColumnName("Timestamp")
-            .IsRequired();
-
         // Indexes
+        builder.HasIndex(s => s.EntityId)
+            .HasDatabaseName("IX_SyncEvents_EntityId");
+
         builder.HasIndex(s => s.DeviceId)
             .HasDatabaseName("IX_SyncEvents_DeviceId");
 
         builder.HasIndex(s => s.EventType)
             .HasDatabaseName("IX_SyncEvents_EventType");
 
+        builder.HasIndex(s => s.EntityType)
+            .HasDatabaseName("IX_SyncEvents_EntityType");
+
         builder.HasIndex(s => s.Timestamp)
             .HasDatabaseName("IX_SyncEvents_Timestamp");
+
+        builder.HasIndex(s => s.Checksum)
+            .HasDatabaseName("IX_SyncEvents_Checksum");
 
         builder.HasIndex(s => new { s.DeviceId, s.Timestamp })
             .HasDatabaseName("IX_SyncEvents_DeviceId_Timestamp");
 
-        // Foreign key relationship with Device
-        builder.HasOne<Device>()
-            .WithMany()
-            .HasForeignKey(s => s.DeviceId)
-            .OnDelete(DeleteBehavior.Cascade);
+        builder.HasIndex(s => new { s.EntityType, s.EntityReference })
+            .HasDatabaseName("IX_SyncEvents_EntityType_EntityReference");
     }
 }

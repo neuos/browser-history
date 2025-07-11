@@ -1,6 +1,8 @@
 using BrowserHistory.Application.Common.Interfaces;
+using BrowserHistory.Domain.Repositories;
 using BrowserHistory.Infrastructure.Configuration;
 using BrowserHistory.Infrastructure.Data;
+using BrowserHistory.Infrastructure.Data.Repositories;
 using BrowserHistory.Infrastructure.Identity;
 using BrowserHistory.Infrastructure.Repositories;
 using BrowserHistory.Infrastructure.Services;
@@ -39,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<IHistoryRepository, HistoryRepository>();
         services.AddScoped<ISyncEventRepository, SyncEventRepository>();
+        services.AddScoped<IPageRepository, PageRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Services

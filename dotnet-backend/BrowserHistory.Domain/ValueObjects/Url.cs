@@ -24,6 +24,11 @@ public readonly record struct Url
     public static Url From(string value) => new(value);
 
     /// <summary>
+    /// Creates a URL from a string (alias for From)
+    /// </summary>
+    public static Url Create(string value) => new(value);
+
+    /// <summary>
     /// Creates a URL from a Uri
     /// </summary>
     public static Url From(Uri uri) => new(uri?.ToString() ?? throw new ArgumentNullException(nameof(uri)));

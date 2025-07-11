@@ -17,6 +17,7 @@ public class BrowserHistoryDbContext : DbContext
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<HistoryNode> HistoryNodes => Set<HistoryNode>();
     public DbSet<SyncEvent> SyncEvents => Set<SyncEvent>();
+    public DbSet<Page> Pages => Set<Page>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
