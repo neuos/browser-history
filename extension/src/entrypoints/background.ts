@@ -26,6 +26,21 @@ async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' 
   }
 }
 
+// Utility function to broadcast sync status changes to popup windows
+async function broadcastSyncStatusChanged() {
+  console.log('Background: Broadcasting SYNC_STATUS_CHANGED message');
+  
+  try {
+    // Send message to all connected tabs/popups
+    await browser.runtime.sendMessage({
+      type: 'SYNC_STATUS_CHANGED'
+    });
+  } catch (error) {
+    console.log('Background: Error broadcasting sync status message (popup might not be open):', error);
+    // This is normal - popup might not be open
+  }
+}
+
 export default defineBackground(() => {
   console.log('Background: defineBackground called');
   
@@ -410,6 +425,13 @@ export default defineBackground(() => {
     });
 
     console.log('Background: Setup completed successfully');
+    
+    // Periodically broadcast sync status changes to keep popup updated
+    setInterval(async () => {
+      if (await syncService.isConfigured()) {
+        broadcastSyncStatusChanged();
+      }
+    }, 5000); // Every 5 seconds when configured
   })().catch(error => {
     console.error('Background: Critical error during setup:', error);
   });

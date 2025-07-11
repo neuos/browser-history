@@ -61,8 +61,21 @@
       }
     });
     
+    // Listen for connection state changes from background
+    const messageListener = (message: any) => {
+      if (message.type === 'SYNC_STATUS_CHANGED') {
+        console.log('App: Received SYNC_STATUS_CHANGED message');
+        updateSyncStatus();
+      }
+    };
+    
+    browser.runtime.onMessage.addListener(messageListener);
+    
     // Store cleanup function for onDestroy
-    themeCleanup = cleanup;
+    themeCleanup = () => {
+      cleanup();
+      browser.runtime.onMessage.removeListener(messageListener);
+    };
     
     // Set default device name if not configured
     if (!isConfigured && !deviceName) {
@@ -82,12 +95,11 @@
     }
 
     // Refresh status periodically when configured
-    /*
     if (isConfigured) {
       statusRefreshInterval = setInterval(async () => {
         await updateSyncStatus();
-      }, 5000); // Every 5 seconds
-    }*/
+      }, 3000); // Every 3 seconds
+    }
   });
 
   onDestroy(() => {

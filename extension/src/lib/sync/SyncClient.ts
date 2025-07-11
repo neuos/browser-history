@@ -13,6 +13,7 @@ export class SyncClient {
   private deviceInfo: DeviceInfo | null = null
   private eventSource: EventSource | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectionCheckTimer: ReturnType<typeof setInterval> | null = null
   private eventQueue: SyncEvent[] = []
   private isProcessing = false
   private isLoaded = false
@@ -203,6 +204,9 @@ export class SyncClient {
       // Sync pending events
       await this.performBidirectionalSync()
       
+      // Start periodic connection check
+      this.startConnectionMonitoring()
+      
     } catch (error) {
       console.error('Connection failed:', error)
       this.scheduleReconnect()
@@ -286,9 +290,41 @@ export class SyncClient {
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return
     
-    this.reconnectTimer = setTimeout(() => {
-      this.connect().catch(console.error)
+    this.reconnectTimer = setTimeout(async () => {
+      this.reconnectTimer = null
+      try {
+        await this.connect()
+        console.log('SyncClient: Reconnection successful')
+      } catch (error) {
+        console.error('SyncClient: Reconnection failed, will retry:', error)
+        this.scheduleReconnect()
+      }
     }, 5000) // Retry every 5 seconds
+  }
+
+  private startConnectionMonitoring(): void {
+    // Clear any existing timer
+    if (this.connectionCheckTimer) {
+      clearInterval(this.connectionCheckTimer)
+    }
+    
+    // Check connection every 30 seconds
+    this.connectionCheckTimer = setInterval(async () => {
+      if (!this.config || !this.deviceInfo) return
+      
+      // Check if SSE connection is broken
+      const isSSEConnected = this.eventSource?.readyState === EventSource.OPEN
+      
+      if (!isSSEConnected && !this.reconnectTimer) {
+        console.log('SyncClient: Connection monitor detected SSE disconnection, attempting reconnect...')
+        try {
+          await this.connectSSE()
+        } catch (error) {
+          console.warn('SyncClient: Background SSE reconnection failed:', error)
+          this.scheduleReconnect()
+        }
+      }
+    }, 30000) // Check every 30 seconds
   }
 
   // Event synchronization
@@ -563,8 +599,14 @@ export class SyncClient {
 
   // Status
   getStatus(): SyncStatus {
+    const isSSEConnected = this.eventSource?.readyState === EventSource.OPEN;
+    const hasConfig = !!(this.config && this.deviceInfo);
+    
+    // Consider connected if we have config (HTTP sync works) even if SSE is not connected
+    const isConnected = hasConfig && (isSSEConnected || this.lastSyncTime > 0);
+    
     return {
-      isConnected: this.eventSource?.readyState === EventSource.OPEN,
+      isConnected,
       lastSync: this.lastSyncTime,
       pendingEvents: this.eventQueue.length,
       successfulSyncs: this.successfulSyncs,
@@ -591,6 +633,11 @@ export class SyncClient {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = null
+    }
+    
+    if (this.connectionCheckTimer) {
+      clearInterval(this.connectionCheckTimer)
+      this.connectionCheckTimer = null
     }
   }
 
