@@ -15,6 +15,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: dotnet-backend
     
     steps:
     - uses: actions/checkout@v4
@@ -26,20 +30,17 @@ jobs:
     
     - name: Restore dependencies
       run: dotnet restore
-      working-directory: ./dotnet-backend
     
     - name: Build
       run: dotnet build --no-restore
-      working-directory: ./dotnet-backend
     
     - name: Test
       run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage"
-      working-directory: ./dotnet-backend
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v4
       with:
-        directory: ./dotnet-backend
+        directory: dotnet-backend
         fail_ci_if_error: false
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
