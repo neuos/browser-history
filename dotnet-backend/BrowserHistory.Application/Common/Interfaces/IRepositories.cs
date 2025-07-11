@@ -29,6 +29,17 @@ public interface IHistoryRepository
     Task<HistoryNode> CreateAsync(HistoryNode historyNode, CancellationToken cancellationToken = default);
     Task<HistoryNode> UpdateAsync(HistoryNode historyNode, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<(IEnumerable<HistoryNode> Entries, int TotalCount)> GetHistoryEntriesAsync(
+        DateTime? since = null,
+        DateTime? until = null,
+        int skip = 0,
+        int take = 50,
+        CancellationToken cancellationToken = default);
+    Task<(IEnumerable<HistoryNode> Results, int TotalCount)> SearchHistoryAsync(
+        string searchTerm,
+        int skip = 0,
+        int take = 50,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -40,6 +51,17 @@ public interface ISyncEventRepository
     Task<IEnumerable<SyncEvent>> GetByDeviceAsync(DeviceId deviceId, CancellationToken cancellationToken = default);
     Task<IEnumerable<SyncEvent>> GetRecentAsync(int count = 100, CancellationToken cancellationToken = default);
     Task<SyncEvent> CreateAsync(SyncEvent syncEvent, CancellationToken cancellationToken = default);
+    Task AddRangeAsync(IEnumerable<SyncEvent> syncEvents, CancellationToken cancellationToken = default);
+    Task<IEnumerable<Guid>> GetExistingEventIdsAsync(IEnumerable<Guid> eventIds, CancellationToken cancellationToken = default);
+    Task<(IEnumerable<SyncEvent> Events, int TotalCount)> GetEventsAsync(
+        DeviceId? excludeDeviceId = null,
+        DateTime? since = null,
+        int skip = 0,
+        int take = 100,
+        CancellationToken cancellationToken = default);
+    Task<SyncEvent?> GetLastEventForDeviceAsync(DeviceId deviceId, CancellationToken cancellationToken = default);
+    Task<int> GetPendingEventsCountAsync(DeviceId deviceId, CancellationToken cancellationToken = default);
+    Task<int> GetTotalEventsCountForDeviceAsync(DeviceId deviceId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>

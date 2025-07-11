@@ -16,9 +16,9 @@
 - Strict nullability enforcement with TreatWarningsAsErrors
 - Latest NuGet packages (EF Core 9.0.7, AutoMapper 15.0.1, etc.)
 
-🔄 **Next Phase:** Complete remaining Application features (Auth, Sync, History) and API Layer
+🔄 **Next Phase:** Infrastructure repository implementation and API Layer
 
-⚠️ **Note:** Only Device features are implemented in Application layer. Auth, Sync, and History features still need implementation.y Backend - C# .NET 9 Implementation Plan
+⚠️ **Current Status:** Application layer complete (Device, Sync, History features), Infrastructure needs repository method implementations.y Backend - C# .NET 9 Implementation Plan
 
 ## � **Current Status** (Updated: July 11, 2025)
 
@@ -179,26 +179,26 @@ Rewrite the current Deno/TypeScript backend in C# .NET 9 using Clean Architectur
   - [ ] `RefreshTokenRequest/Response`
   - [ ] `DeviceInfoDto`
 
-### **Sync Feature**
-- [ ] Commands:
-  - [ ] `SubmitSyncEventsCommand` & Handler & Validator
+### **Sync Feature** ✅ **COMPLETED**
+- [x] Commands:
+  - [x] `SubmitSyncEventsCommand` & Handler & Validator
   - [ ] `ProcessSyncEventCommand` & Handler & Validator
-- [ ] Queries:
-  - [ ] `GetSyncEventsQuery` & Handler
-  - [ ] `GetSyncStatusQuery` & Handler
-- [ ] DTOs:
-  - [ ] `SyncEventDto`
-  - [ ] `SubmitSyncEventsRequest/Response`
-  - [ ] `SyncStatusDto`
+- [x] Queries:
+  - [x] `GetSyncEventsQuery` & Handler
+  - [x] `GetSyncStatusQuery` & Handler
+- [x] DTOs:
+  - [x] `SyncEventDto`
+  - [x] `SubmitSyncEventsRequest/Response`
+  - [x] `SyncStatusDto`
 
-### **History Feature**
-- [ ] Queries:
-  - [ ] `GetHistoryEntriesQuery` & Handler
-  - [ ] `SearchHistoryQuery` & Handler
-- [ ] DTOs:
-  - [ ] `HistoryEntryDto`
-  - [ ] `GetHistoryRequest/Response`
-  - [ ] `PagedResult<T>`
+### **History Feature** ✅ **COMPLETED**
+- [x] Queries:
+  - [x] `GetHistoryEntriesQuery` & Handler
+  - [x] `SearchHistoryQuery` & Handler
+- [x] DTOs:
+  - [x] `HistoryEntryDto`
+  - [x] `GetHistoryRequest/Response`
+  - [x] Search response models
 
 ### **Device Feature** ✅ **COMPLETED**
 - [x] Commands:
