@@ -4,6 +4,7 @@ using BrowserHistory.Application.Features.Pages.Queries;
 using BrowserHistory.Application.Common.Models;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace BrowserHistory.Api.Extensions;
 
@@ -86,7 +87,7 @@ public static class PageEndpoints
 
         var result = await mediator.Send(query, cancellationToken);
         
-        return Results.Ok(ApiResponse<GetPagesResponse>.Success(result));
+        return Results.Ok(ApiResponse<GetPagesResponse>.CreateSuccess(result));
     }
 
     /// <summary>
@@ -100,7 +101,7 @@ public static class PageEndpoints
     {
         if (string.IsNullOrWhiteSpace(url))
         {
-            return Results.BadRequest(ApiResponse<PageDto>.Error("URL parameter is required"));
+            return Results.BadRequest(ApiResponse<PageDto>.CreateError("URL parameter is required"));
         }
 
         var query = new GetPageByUrlQuery { Url = url };
@@ -108,10 +109,10 @@ public static class PageEndpoints
 
         if (result is null)
         {
-            return Results.NotFound(ApiResponse<PageDto>.Error("Page not found"));
+            return Results.NotFound(ApiResponse<PageDto>.CreateError("Page not found"));
         }
 
-        return Results.Ok(ApiResponse<PageDto>.Success(result));
+        return Results.Ok(ApiResponse<PageDto>.CreateSuccess(result));
     }
 
     /// <summary>
@@ -140,7 +141,7 @@ public static class PageEndpoints
         
         var statusCode = result.WasCreated ? 201 : 200;
         return Results.Json(
-            ApiResponse<PageResponse>.Success(result), 
+            ApiResponse<PageResponse>.CreateSuccess(result), 
             statusCode: statusCode);
     }
 
@@ -155,7 +156,7 @@ public static class PageEndpoints
     {
         if (string.IsNullOrWhiteSpace(url))
         {
-            return Results.BadRequest(ApiResponse<bool>.Error("URL parameter is required"));
+            return Results.BadRequest(ApiResponse<bool>.CreateError("URL parameter is required"));
         }
 
         var command = new DeletePageCommand { Url = url };
@@ -163,9 +164,9 @@ public static class PageEndpoints
 
         if (!result)
         {
-            return Results.NotFound(ApiResponse<bool>.Error("Page not found"));
+            return Results.NotFound(ApiResponse<bool>.CreateError("Page not found"));
         }
 
-        return Results.Ok(ApiResponse<bool>.Success(result, "Page deleted successfully"));
+        return Results.Ok(ApiResponse<bool>.CreateSuccess(result, "Page deleted successfully"));
     }
 }

@@ -104,13 +104,13 @@ public sealed record ApiResponse<T>
     public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
     public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
-    public static ApiResponse<T> CreateSuccess(T data, string? message = null) =>
+    public static ApiResponse<T> Success(T data, string? message = null) =>
         new() { Success = true, Data = data, Message = message };
 
-    public static ApiResponse<T> CreateError(string message, IReadOnlyList<string>? errors = null) =>
+    public static ApiResponse<T> Error(string message, IReadOnlyList<string>? errors = null) =>
         new() { Success = false, Message = message, Errors = errors ?? Array.Empty<string>() };
 
-    public static ApiResponse<T> CreateError(IReadOnlyList<string> errors) =>
+    public static ApiResponse<T> Error(IReadOnlyList<string> errors) =>
         new() { Success = false, Errors = errors };
 }
 
