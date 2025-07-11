@@ -1,0 +1,45 @@
+name: .NET Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'dotnet-backend/**'
+      - '.github/workflows/dotnet-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'dotnet-backend/**'
+      - '.github/workflows/dotnet-tests.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+      working-directory: ./dotnet-backend
+    
+    - name: Build
+      run: dotnet build --no-restore
+      working-directory: ./dotnet-backend
+    
+    - name: Test
+      run: dotnet test --no-build --verbosity normal --collect:"XPlat Code Coverage"
+      working-directory: ./dotnet-backend
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      with:
+        directory: ./dotnet-backend
+        fail_ci_if_error: false
+      env:
+        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
