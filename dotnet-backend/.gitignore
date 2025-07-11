@@ -7,7 +7,7 @@ TestResults/
 *.pdb
 
 # Database files
-data/
+/data/
 *.db
 *.db-shm
 *.db-wal
