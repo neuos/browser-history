@@ -20,6 +20,30 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <WarningsAsErrors />
+    
+    <!-- Native AOT Configuration - disabled temporarily for testing -->
+    <PublishAot>false</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
+    <StripSymbols>true</StripSymbols>
+    
+    <!-- AOT-compatible JSON serialization -->
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
+
+  <!-- Native AOT warnings suppression for external dependencies -->
+  <ItemGroup>
+    <SuppressNativeAotTrimming Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <SuppressNativeAotTrimming Include="Serilog.AspNetCore" />
+    <SuppressNativeAotTrimming Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+  </ItemGroup>
+
+  <!-- Preserve assemblies for reflection -->
+  <ItemGroup>
+    <TrimmerRootAssembly Include="BrowserHistory.Application" />
+    <TrimmerRootAssembly Include="BrowserHistory.Infrastructure" />
+    <TrimmerRootAssembly Include="BrowserHistory.Domain" />
+  </ItemGroup>
 
 </Project>

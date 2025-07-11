@@ -2,6 +2,7 @@ using BrowserHistory.Application;
 using BrowserHistory.Infrastructure;
 using BrowserHistory.Api.Extensions;
 using Microsoft.AspNetCore.ResponseCompression;
+using System.Text.Json;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,16 @@ builder.Services.AddCors(options =>
 // Add Application and Infrastructure layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// Configure AOT-compatible JSON serialization
+// Configure JSON serialization for API
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.DictionaryKeyPolicy = JsonNamingPolicy.CamelCase;
+    options.SerializerOptions.PropertyNameCaseInsensitive = true;
+    options.SerializerOptions.WriteIndented = builder.Environment.IsDevelopment();
+});
 
 // Add performance optimizations
 builder.Services.AddResponseCompression(options =>
