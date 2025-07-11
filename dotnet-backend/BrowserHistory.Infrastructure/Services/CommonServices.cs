@@ -1,4 +1,5 @@
 using BrowserHistory.Application.Common.Interfaces;
+using Microsoft.Extensions.Logging;
 
 namespace BrowserHistory.Infrastructure.Services;
 
@@ -16,41 +17,84 @@ public class DateTimeProvider : IDateTimeProvider
 /// </summary>
 public class NotificationService : INotificationService
 {
-    // This will be enhanced when we implement the API layer with SSE
-    // For now, providing basic logging implementation
+    private readonly IServerSentEventService? _sseService;
+    private readonly ILogger<NotificationService> _logger;
 
-    public Task NotifyDeviceConnectedAsync(string deviceId, string deviceName, CancellationToken cancellationToken = default)
+    public NotificationService(
+        ILogger<NotificationService> logger,
+        IServerSentEventService? sseService = null)
     {
-        // TODO: Implement SSE notification
-        Console.WriteLine($"Device connected: {deviceName} ({deviceId})");
-        return Task.CompletedTask;
+        _logger = logger;
+        _sseService = sseService;
     }
 
-    public Task NotifyDeviceDisconnectedAsync(string deviceId, string deviceName, CancellationToken cancellationToken = default)
+    public async Task NotifyDeviceConnectedAsync(string deviceId, string deviceName, CancellationToken cancellationToken = default)
     {
-        // TODO: Implement SSE notification
-        Console.WriteLine($"Device disconnected: {deviceName} ({deviceId})");
-        return Task.CompletedTask;
+        _logger.LogInformation("Device connected: {DeviceName} ({DeviceId})", deviceName, deviceId);
+        
+        if (_sseService != null)
+        {
+            await _sseService.BroadcastToOthersAsync(deviceId, new
+            {
+                type = "device_connected",
+                data = new { deviceId, deviceName, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            }, cancellationToken);
+        }
     }
 
-    public Task NotifyHistorySyncStartedAsync(string deviceId, CancellationToken cancellationToken = default)
+    public async Task NotifyDeviceDisconnectedAsync(string deviceId, string deviceName, CancellationToken cancellationToken = default)
     {
-        // TODO: Implement SSE notification
-        Console.WriteLine($"History sync started for device: {deviceId}");
-        return Task.CompletedTask;
+        _logger.LogInformation("Device disconnected: {DeviceName} ({DeviceId})", deviceName, deviceId);
+        
+        if (_sseService != null)
+        {
+            await _sseService.BroadcastToOthersAsync(deviceId, new
+            {
+                type = "device_disconnected",
+                data = new { deviceId, deviceName, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            }, cancellationToken);
+        }
     }
 
-    public Task NotifyHistorySyncCompletedAsync(string deviceId, int itemsProcessed, CancellationToken cancellationToken = default)
+    public async Task NotifyHistorySyncStartedAsync(string deviceId, CancellationToken cancellationToken = default)
     {
-        // TODO: Implement SSE notification
-        Console.WriteLine($"History sync completed for device: {deviceId}, items processed: {itemsProcessed}");
-        return Task.CompletedTask;
+        _logger.LogInformation("History sync started for device: {DeviceId}", deviceId);
+        
+        if (_sseService != null)
+        {
+            await _sseService.SendToDeviceAsync(deviceId, new
+            {
+                type = "sync_started",
+                data = new { deviceId, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            }, cancellationToken);
+        }
     }
 
-    public Task NotifySyncErrorAsync(string deviceId, string errorMessage, CancellationToken cancellationToken = default)
+    public async Task NotifyHistorySyncCompletedAsync(string deviceId, int itemsProcessed, CancellationToken cancellationToken = default)
     {
-        // TODO: Implement SSE notification
-        Console.WriteLine($"Sync error for device: {deviceId}, error: {errorMessage}");
-        return Task.CompletedTask;
+        _logger.LogInformation("History sync completed for device: {DeviceId}, items processed: {ItemsProcessed}", deviceId, itemsProcessed);
+        
+        if (_sseService != null)
+        {
+            await _sseService.SendToDeviceAsync(deviceId, new
+            {
+                type = "sync_completed",
+                data = new { deviceId, itemsProcessed, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            }, cancellationToken);
+        }
+    }
+
+    public async Task NotifySyncErrorAsync(string deviceId, string errorMessage, CancellationToken cancellationToken = default)
+    {
+        _logger.LogError("Sync error for device: {DeviceId}, error: {ErrorMessage}", deviceId, errorMessage);
+        
+        if (_sseService != null)
+        {
+            await _sseService.SendToDeviceAsync(deviceId, new
+            {
+                type = "sync_error",
+                data = new { deviceId, error = errorMessage, timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() }
+            }, cancellationToken);
+        }
     }
 }

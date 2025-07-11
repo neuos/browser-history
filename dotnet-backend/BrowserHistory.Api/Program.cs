@@ -50,6 +50,7 @@ app.MapAuthEndpoints();
 app.MapDeviceEndpoints();
 app.MapSyncEndpoints();
 app.MapHistoryEndpoints();
+app.MapSSEEndpoints();
 app.MapHealthEndpoints();
 
 app.Run();

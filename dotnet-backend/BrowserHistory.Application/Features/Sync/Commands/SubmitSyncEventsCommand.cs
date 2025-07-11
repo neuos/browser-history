@@ -60,17 +60,20 @@ public class SubmitSyncEventsCommandHandler : IRequestHandler<SubmitSyncEventsCo
     private readonly IDeviceRepository _deviceRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly IServerSentEventService? _sseService;
 
     public SubmitSyncEventsCommandHandler(
         ISyncEventRepository syncEventRepository,
         IDeviceRepository deviceRepository,
         IUnitOfWork unitOfWork,
-        IDateTimeProvider dateTimeProvider)
+        IDateTimeProvider dateTimeProvider,
+        IServerSentEventService? sseService = null)
     {
         _syncEventRepository = syncEventRepository;
         _deviceRepository = deviceRepository;
         _unitOfWork = unitOfWork;
         _dateTimeProvider = dateTimeProvider;
+        _sseService = sseService;
     }
 
     public async Task<Result<SubmitSyncEventsResponse>> Handle(SubmitSyncEventsCommand request, CancellationToken cancellationToken)
@@ -123,6 +126,28 @@ public class SubmitSyncEventsCommandHandler : IRequestHandler<SubmitSyncEventsCo
                 await _deviceRepository.UpdateAsync(device, cancellationToken);
 
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+                // Broadcast events to other connected devices via SSE
+                if (_sseService != null)
+                {
+                    var eventDtos = eventsToProcess.Select(e => new
+                    {
+                        id = e.Id,
+                        deviceId = e.DeviceId.ToString(),
+                        timestamp = new DateTimeOffset(e.Timestamp).ToUnixTimeMilliseconds(),
+                        eventType = e.EventType.ToString(),
+                        entityType = "history", // TODO: Extract from metadata
+                        entityId = e.Id, // TODO: Extract from metadata
+                        data = e.Metadata
+                    }).ToArray();
+
+                    await _sseService.BroadcastToOthersAsync(request.DeviceId.ToString(), new
+                    {
+                        type = "sync_batch",
+                        data = new { events = eventDtos },
+                        timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                    }, cancellationToken);
+                }
             }
 
             return Result<SubmitSyncEventsResponse>.Success(
