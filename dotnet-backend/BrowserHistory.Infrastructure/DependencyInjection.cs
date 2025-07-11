@@ -1,5 +1,7 @@
 using BrowserHistory.Application.Common.Interfaces;
+using BrowserHistory.Infrastructure.Configuration;
 using BrowserHistory.Infrastructure.Data;
+using BrowserHistory.Infrastructure.Identity;
 using BrowserHistory.Infrastructure.Repositories;
 using BrowserHistory.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
@@ -43,21 +45,30 @@ public static class DependencyInjection
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
         services.AddScoped<INotificationService, NotificationService>();
 
+        // Authentication services
+        services.AddAuthenticationServices(configuration);
+
         return services;
     }
 
     public static async Task InitializeDatabaseAsync(this IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
+        
+        // Initialize main database
         var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
-        
-        // Ensure database is created
         await context.Database.EnsureCreatedAsync();
-        
-        // Apply any pending migrations
         if ((await context.Database.GetPendingMigrationsAsync()).Any())
         {
             await context.Database.MigrateAsync();
+        }
+
+        // Initialize identity database
+        var identityContext = scope.ServiceProvider.GetRequiredService<DeviceIdentityContext>();
+        await identityContext.Database.EnsureCreatedAsync();
+        if ((await identityContext.Database.GetPendingMigrationsAsync()).Any())
+        {
+            await identityContext.Database.MigrateAsync();
         }
     }
 }

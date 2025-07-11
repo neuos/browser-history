@@ -41,10 +41,18 @@ app.UseSerilogRequestLogging();
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
+// Add authentication and authorization middleware
+app.UseAuthentication();
+app.UseAuthorization();
+
 // Map API endpoints
+app.MapAuthEndpoints();
 app.MapDeviceEndpoints();
 app.MapSyncEndpoints();
 app.MapHistoryEndpoints();
 app.MapHealthEndpoints();
 
 app.Run();
+
+// Make the implicit Program class public for testing
+public partial class Program { }
