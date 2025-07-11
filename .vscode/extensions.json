@@ -5,6 +5,9 @@
     "denoland.vscode-deno",
     "ms-playwright.playwright",
     "bradlc.vscode-tailwindcss",
-    "ms-vscode.js-debug-companion"
+    "ms-vscode.js-debug-companion",
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.vscodeintellicode-csharp"
   ]
 }
