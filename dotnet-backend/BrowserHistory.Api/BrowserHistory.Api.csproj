@@ -28,8 +28,14 @@
     <IlcOptimizationPreference>Speed</IlcOptimizationPreference>
     <StripSymbols>true</StripSymbols>
     
-    <!-- AOT-compatible JSON serialization -->
-    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+    <!--
+      Reflection-based JSON stays on: PublishAot is false above, and ApiJsonContext (the source-gen
+      resolver meant to replace reflection for AOT) is never registered in Program.cs, is missing
+      several DTOs used by real endpoints, and references at least one DTO from the wrong
+      namespace. Setting this to false without a working resolver wired in makes every JSON
+      endpoint fail at startup (System.Text.Json.ThrowHelper.ThrowNotSupportedException_NoMetadataForType).
+      Revisit together when AOT publishing is actually turned back on.
+    -->
   </PropertyGroup>
 
   <!-- Native AOT warnings suppression for external dependencies -->
