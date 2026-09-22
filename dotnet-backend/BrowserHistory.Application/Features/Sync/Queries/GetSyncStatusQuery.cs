@@ -1,5 +1,6 @@
 using BrowserHistory.Application.Common.Interfaces;
 using BrowserHistory.Application.Common.Models;
+using BrowserHistory.Application.Features.Sync.Models;
 using BrowserHistory.Domain.ValueObjects;
 using FluentValidation;
 using MediatR;
@@ -47,13 +48,15 @@ public class GetSyncStatusQueryHandler : IRequestHandler<GetSyncStatusQuery, Res
             var pendingEventsCount = await _syncEventRepository.GetPendingEventsCountAsync(request.DeviceId, cancellationToken);
             var totalEventsCount = await _syncEventRepository.GetTotalEventsCountForDeviceAsync(request.DeviceId, cancellationToken);
 
-            var syncStatus = new SyncStatusDto(
-                DeviceId: request.DeviceId,
-                IsActive: device.IsActive,
-                LastSyncTimestamp: lastSyncEvent?.Timestamp,
-                PendingEventsCount: pendingEventsCount,
-                TotalEventsCount: totalEventsCount,
-                LastSeen: device.LastSeen);
+            var syncStatus = new SyncStatusDto
+            {
+                DeviceId = request.DeviceId.ToString(),
+                IsActive = device.IsActive,
+                LastSyncTimestamp = lastSyncEvent?.Timestamp,
+                PendingEventsCount = pendingEventsCount,
+                TotalEventsCount = totalEventsCount,
+                LastSeen = device.LastSeen
+            };
 
             return Result<SyncStatusDto>.Success(syncStatus);
         }

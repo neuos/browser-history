@@ -22,6 +22,7 @@ public class SyncEventConfiguration : IEntityTypeConfiguration<SyncEvent>
 
         builder.Property(s => s.EntityId)
             .HasColumnName("EntityId")
+            .HasMaxLength(2000) // pages are keyed by URL, not a GUID
             .IsRequired();
 
         builder.Property(s => s.DeviceId)
@@ -40,11 +41,6 @@ public class SyncEventConfiguration : IEntityTypeConfiguration<SyncEvent>
         builder.Property(s => s.EntityType)
             .HasColumnName("EntityType")
             .HasConversion<int>()
-            .IsRequired();
-
-        builder.Property(s => s.EntityReference)
-            .HasColumnName("EntityReference")
-            .HasMaxLength(500)
             .IsRequired();
 
         builder.Property(s => s.Data)
@@ -83,7 +79,7 @@ public class SyncEventConfiguration : IEntityTypeConfiguration<SyncEvent>
         builder.HasIndex(s => new { s.DeviceId, s.Timestamp })
             .HasDatabaseName("IX_SyncEvents_DeviceId_Timestamp");
 
-        builder.HasIndex(s => new { s.EntityType, s.EntityReference })
-            .HasDatabaseName("IX_SyncEvents_EntityType_EntityReference");
+        builder.HasIndex(s => new { s.EntityType, s.EntityId })
+            .HasDatabaseName("IX_SyncEvents_EntityType_EntityId");
     }
 }

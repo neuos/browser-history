@@ -11,12 +11,11 @@ public class SyncEvent
     private SyncEvent() { } // For EF Core
 
     private SyncEvent(
-        Guid entityId,
-        DeviceId deviceId, 
+        string entityId,
+        DeviceId deviceId,
         DateTime timestamp,
-        SyncEventType eventType, 
+        SyncEventType eventType,
         SyncEntityType entityType,
-        string entityReference,
         string data,
         string checksum,
         string? metadata = null)
@@ -27,21 +26,19 @@ public class SyncEvent
         Timestamp = timestamp;
         EventType = eventType;
         EntityType = entityType;
-        EntityReference = entityReference;
         Data = data;
         Checksum = checksum;
         Metadata = metadata;
     }
 
-    // Legacy constructor for backward compatibility
+    // Legacy constructor for device-lifecycle events that aren't tied to a specific entity
     private SyncEvent(DeviceId deviceId, SyncEventType eventType, string? metadata = null)
     {
         Id = Guid.NewGuid();
-        EntityId = Guid.NewGuid();
+        EntityId = string.Empty;
         DeviceId = deviceId;
         EventType = eventType;
         EntityType = SyncEntityType.History; // Default for legacy events
-        EntityReference = string.Empty;
         Data = string.Empty;
         Checksum = string.Empty;
         Metadata = metadata;
@@ -49,41 +46,41 @@ public class SyncEvent
     }
 
     public Guid Id { get; private set; }
-    public Guid EntityId { get; private set; }
+    public string EntityId { get; private set; } = string.Empty;
     public DeviceId DeviceId { get; private set; } = default!;
     public DateTime Timestamp { get; private set; }
     public SyncEventType EventType { get; private set; }
     public SyncEntityType EntityType { get; private set; }
-    public string EntityReference { get; private set; } = string.Empty;
     public string Data { get; private set; } = string.Empty;
     public string Checksum { get; private set; } = string.Empty;
     public string? Metadata { get; private set; }
 
     /// <summary>
-    /// Creates a new detailed sync event
+    /// Creates a new detailed sync event tied to a specific entity (a history node or page).
+    /// EntityId is a string because entities are keyed differently: history nodes use a GUID,
+    /// pages use their URL.
     /// </summary>
     public static SyncEvent Create(
-        Guid entityId,
+        string entityId,
         DeviceId deviceId,
         DateTime timestamp,
         SyncEventType eventType,
         SyncEntityType entityType,
-        string entityReference,
         string data,
         string checksum,
         string? metadata = null)
     {
-        if (string.IsNullOrWhiteSpace(entityReference))
-            throw new ArgumentException("Entity reference cannot be null or empty", nameof(entityReference));
-        
+        if (string.IsNullOrWhiteSpace(entityId))
+            throw new ArgumentException("Entity id cannot be null or empty", nameof(entityId));
+
         if (string.IsNullOrWhiteSpace(data))
             throw new ArgumentException("Data cannot be null or empty", nameof(data));
-        
+
         if (string.IsNullOrWhiteSpace(checksum))
             throw new ArgumentException("Checksum cannot be null or empty", nameof(checksum));
 
-        return new SyncEvent(entityId, deviceId, timestamp, eventType, entityType, 
-            entityReference, data, checksum, metadata);
+        return new SyncEvent(entityId, deviceId, timestamp, eventType, entityType,
+            data, checksum, metadata);
     }
 
     /// <summary>

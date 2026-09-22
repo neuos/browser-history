@@ -93,6 +93,22 @@ public static class AuthenticationConfiguration
 
             options.Events = new JwtBearerEvents
             {
+                OnMessageReceived = context =>
+                {
+                    // EventSource (used by the browser extension for SSE) cannot set an
+                    // Authorization header, so it passes the JWT as a query string parameter.
+                    if (string.IsNullOrEmpty(context.Token) &&
+                        context.Request.Path.StartsWithSegments("/api/v1/sse"))
+                    {
+                        var token = context.Request.Query["token"];
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            context.Token = token;
+                        }
+                    }
+
+                    return Task.CompletedTask;
+                },
                 OnTokenValidated = async context =>
                 {
                     // Update last seen when token is validated
