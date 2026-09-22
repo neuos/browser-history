@@ -1,8 +1,10 @@
 using BrowserHistory.Application.Common.Interfaces;
 using BrowserHistory.Application.Common.Models;
+using BrowserHistory.Application.Features.Sync.Models;
 using BrowserHistory.Domain.ValueObjects;
 using FluentValidation;
 using MediatR;
+using System.Text.Json;
 
 namespace BrowserHistory.Application.Features.Sync.Queries;
 
@@ -57,12 +59,17 @@ public class GetSyncEventsQueryHandler : IRequestHandler<GetSyncEventsQuery, Res
                 take: request.Take,
                 cancellationToken);
 
-            var eventDtos = events.Select(e => new SyncEventDto(
-                e.Id,
-                e.DeviceId,
-                e.Timestamp,
-                e.EventType,
-                e.Metadata)).ToList();
+            var eventDtos = events.Select(e => new SyncEventDto
+            {
+                Id = e.Id,
+                DeviceId = e.DeviceId.ToString(),
+                Timestamp = new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                EventType = e.EventType.ToString().ToUpperInvariant(),
+                EntityType = e.EntityType.ToString().ToLowerInvariant(),
+                EntityId = e.EntityId,
+                Data = JsonSerializer.Deserialize<JsonElement>(e.Data),
+                Checksum = e.Checksum
+            }).ToList();
 
             var hasMore = request.Skip + request.Take < totalCount;
 

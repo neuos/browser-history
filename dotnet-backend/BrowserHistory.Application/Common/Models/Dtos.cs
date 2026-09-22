@@ -30,27 +30,6 @@ public record HistoryNodeDto
 }
 
 /// <summary>
-/// Sync event data transfer object
-/// </summary>
-public record SyncEventDto(
-    Guid Id,
-    BrowserHistory.Domain.ValueObjects.DeviceId DeviceId,
-    DateTime Timestamp,
-    BrowserHistory.Domain.Entities.SyncEventType EventType,
-    string? Metadata);
-
-/// <summary>
-/// Sync status data transfer object
-/// </summary>
-public record SyncStatusDto(
-    BrowserHistory.Domain.ValueObjects.DeviceId DeviceId,
-    bool IsActive,
-    DateTime? LastSyncTimestamp,
-    int PendingEventsCount,
-    int TotalEventsCount,
-    DateTime LastSeen);
-
-/// <summary>
 /// Paginated result wrapper
 /// </summary>
 public record PaginatedResult<T>

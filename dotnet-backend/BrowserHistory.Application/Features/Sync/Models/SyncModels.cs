@@ -1,20 +1,21 @@
-using BrowserHistory.Domain.Entities;
-using BrowserHistory.Domain.ValueObjects;
+using System.Text.Json;
 
 namespace BrowserHistory.Application.Features.Sync.Models;
 
 /// <summary>
-/// Sync event data transfer object
+/// Sync event data transfer object. Timestamp is Unix milliseconds (not an ISO date string) and
+/// Data is a raw JSON element (not a pre-serialized string) to match what the browser extension
+/// client actually sends and expects back.
 /// </summary>
 public sealed record SyncEventDto
 {
     public Guid Id { get; init; }
     public string DeviceId { get; init; } = string.Empty;
-    public DateTime Timestamp { get; init; }
+    public long Timestamp { get; init; }
     public string EventType { get; init; } = string.Empty;
     public string EntityType { get; init; } = string.Empty;
     public string EntityId { get; init; } = string.Empty;
-    public string? Data { get; init; }
+    public JsonElement? Data { get; init; }
     public string? Checksum { get; init; }
 }
 
@@ -24,18 +25,6 @@ public sealed record SyncEventDto
 public sealed record SubmitSyncEventsRequest
 {
     public required IReadOnlyList<SyncEventDto> Events { get; init; }
-}
-
-/// <summary>
-/// Response for sync events submission
-/// </summary>
-public sealed record SubmitSyncEventsResponse
-{
-    public int ProcessedCount { get; init; }
-    public int SkippedCount { get; init; }
-    public int ErrorCount { get; init; }
-    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
-    public DateTime ProcessedAt { get; init; }
 }
 
 /// <summary>

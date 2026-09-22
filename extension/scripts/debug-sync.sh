@@ -21,9 +21,9 @@ echo
 
 # Test 2: Test device registration
 echo "2. Testing device registration..."
-DEVICE_RESPONSE=$(curl -s -X POST http://localhost:5165/auth/register-device \
+DEVICE_RESPONSE=$(curl -s -X POST http://localhost:5165/api/v1/auth/register-device \
   -H "Content-Type: application/json" \
-  -d '{"deviceName": "debug-extension-device", "secret": "secret"}')
+  -d '{"deviceName": "debug-extension-device-'$(date +%s)'", "secret": "development-shared-secret"}')
 
 if echo "$DEVICE_RESPONSE" | jq -e '.deviceId' > /dev/null; then
     echo "✅ Device registration works"
@@ -41,19 +41,21 @@ echo
 # Test 3: Test sync events endpoint
 echo "3. Testing sync events endpoint..."
 CURRENT_TIME=$(date +%s)000
-SYNC_RESPONSE=$(curl -s -X POST http://localhost:5165/sync/events \
+EVENT_ID=$(uuidgen)
+NODE_ID=$(uuidgen)
+SYNC_RESPONSE=$(curl -s -X POST http://localhost:5165/api/v1/sync/events \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
     "events": [
       {
-        "id": "debug-event-'$CURRENT_TIME'",
+        "id": "'$EVENT_ID'",
         "timestamp": '$CURRENT_TIME',
         "eventType": "CREATE",
         "entityType": "history",
-        "entityId": "debug-node-'$CURRENT_TIME'",
+        "entityId": "'$NODE_ID'",
         "data": {
-          "id": "debug-node-'$CURRENT_TIME'",
+          "id": "'$NODE_ID'",
           "url": "https://debug-test.com",
           "tabId": 999,
           "timestamp": '$CURRENT_TIME',
@@ -65,7 +67,7 @@ SYNC_RESPONSE=$(curl -s -X POST http://localhost:5165/sync/events \
     ]
   }')
 
-if echo "$SYNC_RESPONSE" | jq -e '.success' > /dev/null; then
+if echo "$SYNC_RESPONSE" | jq -e '.processedCount == 1' > /dev/null; then
     echo "✅ Sync events endpoint works"
     echo "$SYNC_RESPONSE" | jq
 else
@@ -79,7 +81,7 @@ echo
 # Test 4: Check backend database
 echo "4. Checking backend database..."
 EVENTS_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:5165/sync/events?since=0")
+  "http://localhost:5165/api/v1/sync/events?since=0")
 
 if echo "$EVENTS_RESPONSE" | jq -e '.events' > /dev/null; then
     echo "✅ Backend database has events:"
@@ -106,7 +108,7 @@ echo
 echo "3. ⚙️  Set up sync in extension popup:"
 echo "   - Server URL: http://localhost:5165"
 echo "   - Device Name: test-device"
-echo "   - Shared Secret: secret"
+echo "   - Shared Secret: development-shared-secret"
 echo
 echo "4. 🕵️  Debug browser console logs:"
 echo "   - Open DevTools (F12)"

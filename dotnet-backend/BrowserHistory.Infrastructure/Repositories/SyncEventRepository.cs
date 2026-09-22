@@ -68,7 +68,13 @@ public class SyncEventRepository : ISyncEventRepository
         int take = 100, 
         CancellationToken cancellationToken = default)
     {
-        var query = _context.SyncEvents.AsQueryable();
+        // Only entity sync events (Create/Update/Delete) carry real Data/EntityId for clients to
+        // apply; device-lifecycle events (DeviceConnected, HistorySyncStarted, ...) are internal
+        // bookkeeping and must never be handed to a client as if they were history/page data.
+        var query = _context.SyncEvents.AsQueryable()
+            .Where(s => s.EventType == SyncEventType.Create
+                     || s.EventType == SyncEventType.Update
+                     || s.EventType == SyncEventType.Delete);
 
         // Exclude events from specific device if specified
         if (excludeDeviceId != null)

@@ -1,4 +1,5 @@
 using BrowserHistory.Application.Common.Interfaces;
+using BrowserHistory.Domain.Entities;
 using MediatR;
 using Microsoft.Extensions.Configuration;
 
@@ -11,24 +12,40 @@ public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDevic
 {
     private readonly IAuthService _authService;
     private readonly IConfiguration _configuration;
+    private readonly IDeviceRepository _deviceRepository;
+    private readonly IUnitOfWork _unitOfWork;
 
     public RegisterDeviceCommandHandler(
         IAuthService authService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IDeviceRepository deviceRepository,
+        IUnitOfWork unitOfWork)
     {
         _authService = authService;
         _configuration = configuration;
+        _deviceRepository = deviceRepository;
+        _unitOfWork = unitOfWork;
     }
 
     public async Task<RegisterDeviceResult> Handle(
         RegisterDeviceCommand request,
         CancellationToken cancellationToken)
     {
-        // Register the device using the auth service
+        // Register the device (identity/auth) using the auth service - this issues the JWT
+        // and stores the device in the separate Identity database.
         var (deviceId, accessToken, refreshToken) = await _authService.RegisterDeviceAsync(
             request.DeviceName,
             request.SharedSecret,
             cancellationToken);
+
+        // The Sync/History/Page features all look devices up in the main database via
+        // IDeviceRepository, which the Identity database above doesn't populate - create the
+        // matching domain aggregate here so a freshly-registered device can actually sync.
+        var device = Device.Create(deviceId, request.DeviceName);
+        await _deviceRepository.CreateAsync(device, cancellationToken);
+        var syncEvent = SyncEvent.DeviceConnected(deviceId);
+        await _unitOfWork.SyncEvents.CreateAsync(syncEvent, cancellationToken);
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         // Calculate expiry time based on configuration
         var accessTokenExpiryMinutes = int.TryParse(_configuration["Jwt:AccessTokenExpiryMinutes"], out var minutes) ? minutes : 60;

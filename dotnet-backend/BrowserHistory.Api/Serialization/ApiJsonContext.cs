@@ -20,7 +20,7 @@ namespace BrowserHistory.Api.Serialization;
     IncludeFields = false)]
 // Sync Models
 [JsonSerializable(typeof(BrowserHistory.Application.Features.Sync.Models.SubmitSyncEventsRequest))]
-[JsonSerializable(typeof(BrowserHistory.Application.Features.Sync.Models.SubmitSyncEventsResponse))]
+[JsonSerializable(typeof(BrowserHistory.Application.Features.Sync.Commands.SubmitSyncEventsResponse))]
 [JsonSerializable(typeof(BrowserHistory.Application.Features.Sync.Models.SyncEventDto))]
 [JsonSerializable(typeof(BrowserHistory.Application.Features.Sync.Models.SyncStatusDto))]
 // History Models
@@ -49,7 +49,7 @@ namespace BrowserHistory.Api.Serialization;
 [JsonSerializable(typeof(PageStatsDto))]
 // Common Models
 [JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<object>))]
-[JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<BrowserHistory.Application.Features.Sync.Models.SubmitSyncEventsResponse>))]
+[JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<BrowserHistory.Application.Features.Sync.Commands.SubmitSyncEventsResponse>))]
 [JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<BrowserHistory.Application.Features.Sync.Models.SyncStatusDto>))]
 [JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<BrowserHistory.Application.Features.History.Models.GetHistoryResponse>))]
 [JsonSerializable(typeof(BrowserHistory.Application.Common.Models.ApiResponse<BrowserHistory.Application.Features.History.Models.HistoryStatsDto>))]

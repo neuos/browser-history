@@ -85,30 +85,22 @@ public class AuthService : IAuthService
     }
 
     public async Task<(string AccessToken, string RefreshToken)> RefreshTokenAsync(
-        string refreshToken,
+        string accessToken,
         CancellationToken cancellationToken = default)
     {
-        // Find user with the refresh token
-        var users = _userManager.Users.ToList();
-        DeviceUser? deviceUser = null;
-
-        foreach (var user in users)
+        // The client only ever holds its (still-valid but nearing expiry) access token - there is
+        // no separate refresh-token secret handed back at registration for it to send instead - so
+        // "refresh" means "prove you hold a currently-valid access token, get a new one".
+        var deviceId = await ValidateTokenAsync(accessToken, cancellationToken);
+        if (deviceId == null)
         {
-            var storedToken = await _userManager.GetAuthenticationTokenAsync(
-                user, 
-                "BrowserHistory", 
-                "RefreshToken");
-            
-            if (storedToken == refreshToken)
-            {
-                deviceUser = user;
-                break;
-            }
+            throw new UnauthorizedAccessException("Invalid or expired access token");
         }
 
+        var deviceUser = await _userManager.FindByIdAsync(deviceId.Value.Value.ToString());
         if (deviceUser == null)
         {
-            throw new UnauthorizedAccessException("Invalid refresh token");
+            throw new UnauthorizedAccessException("Invalid or expired access token");
         }
 
         // Update last seen

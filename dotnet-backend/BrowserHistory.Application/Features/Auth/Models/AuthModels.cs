@@ -20,14 +20,6 @@ public record RegisterDeviceResponse
 }
 
 /// <summary>
-/// Token refresh request - token comes from Authorization header
-/// </summary>
-public record RefreshTokenRequest
-{
-    // No body needed - token comes from Authorization header
-}
-
-/// <summary>
 /// Token refresh response
 /// </summary>
 public record RefreshTokenResponse

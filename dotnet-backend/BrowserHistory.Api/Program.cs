@@ -41,6 +41,7 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 // Add performance optimizations
+builder.Services.AddMemoryCaching(builder.Configuration); // required by ICacheService (CacheService)
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;

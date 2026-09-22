@@ -17,22 +17,20 @@ Correcting an earlier wrong assumption in this doc: Orion does **not** need a Sa
 
 Firefox for Android's extension support/distribution model has not been investigated in this repo — don't assume the `firefox-mv2` desktop build behaves the same there without checking.
 
-### Implementation status — audited 2026-09-22, backend removal landed same day
+### Implementation status — audited 2026-09-22, sync contract fixed same day
 
-What builds/passes right now: `dotnet-backend` solution builds clean and 248/248 tests pass (but `BrowserHistory.E2E.Tests` isn't in the `.sln` and fails to compile standalone — 13 errors from the pre-DTO-reorg namespaces, silently dropped rather than fixed). `extension/` builds clean and `bun run check` has 0 type errors.
+`dotnet-backend` solution builds clean; 252/252 tests pass (`BrowserHistory.E2E.Tests` still isn't in the `.sln` and still fails to compile standalone — 13 errors from the pre-DTO-reorg namespaces, not yet touched). `extension/` builds clean, `bun run check` has 0 type errors.
 
-**Update**: the legacy Deno `backend/` described below has since been deleted (`dotnet-backend` is now the only backend in the repo) — but the findings below are about a *sync-contract mismatch* between the extension and `dotnet-backend`, which removing the old backend does not fix. They're recorded here as the still-open work:
+**The extension ↔ `dotnet-backend` sync path is now live-verified end-to-end** (register two devices → submit a sync event with a URL entityId and nested data from one → confirm the other receives it over its open SSE connection with correct shape → confirm `GET /sync/events?exclude_device=true` excludes the sender). What was fixed, in order:
+- The API couldn't start a JSON request at all: `JsonSerializerIsReflectionEnabledByDefault=false` was set (AOT prep) with no working source-gen resolver wired in (`ApiJsonContext` existed but was never registered and was missing/mismatched DTOs). Reflection re-enabled; `ApiJsonContext` left as dead code until AOT is actually turned back on.
+- `PerformanceExtensions.AddMemoryCaching()` was defined but never called in `Program.cs`, leaving `ICacheService`'s `IMemoryCache` dependency unresolvable — now wired in.
+- `/api/v1/auth/register-device` only created a `DeviceUser` in the Identity DB, never the domain `Device` aggregate in the main DB that Sync/History/Page look up — every registered device got "Device not found" on its first sync call. `RegisterDeviceCommandHandler` now creates both. (A second, unrelated `POST /api/v1/devices/register` endpoint does create the domain `Device` but nothing calls it — dead code, left alone.)
+- `refresh-token` always 401'd: it validated the client's token against a stored *refresh*-token secret the client never receives. It now validates the token as the access token it actually is. Also dropped `RefreshToken`'s dead body parameter — Minimal API 400s trying to bind any complex type from a truly empty body, which is exactly how the extension calls it.
+- The sync-event contract itself (route prefix, `entityType`/`entityId`/`data`/`checksum` wiring, Unix-ms timestamps instead of ISO strings, SSE query-string JWT auth, JWT-derived `DeviceId` instead of a spoofable body field, `since`/`exclude_device` query binding) — see the `fix-sync-api-contract` branch commits for the full breakdown; `SyncEvent.EntityId` is a `string` now (pages are keyed by URL, not a GUID).
 
-**At the time of this audit, the extension as committed only worked against the legacy Deno `backend/` — not `dotnet-backend`.** Three independent, confirmed breaks when pointed at `dotnet-backend`, none fixed yet:
-- **Route prefix**: `SyncClient.ts` calls unprefixed paths (`/auth/register-device`, `/sync/events`, `/sse/events`) matching legacy `backend/src/main.ts`'s unprefixed mounts and `SyncSetup.svelte`'s default `http://localhost:8000`. `dotnet-backend` mounts everything under `/api/v1/...`.
-- **Sync event shape**: the extension's `applySyncEvent` switches on `event.entityType`/`entityId` (history vs. page), but dotnet's `SyncEventDto` (`GetSyncEventsQuery.cs`) has no such fields — `SyncEvent` in `BrowserHistory.Domain` was never given an entity-type/entity-id concept at all. This is the core routing mechanism the whole sync protocol depends on, and it doesn't exist server-side yet. `SubmitSyncEventsCommand.cs` also hardcodes `entityType = "history" // TODO` when broadcasting, mislabeling Page syncs.
-- **SSE auth**: the extension passes the JWT as `?token=` (EventSource can't set headers); dotnet's `SSEEndpoints.cs` requires standard Bearer auth via `DevicePolicy` with no query-string-token handling wired in `AuthenticationConfiguration.cs` — SSE against dotnet-backend 401s.
+Not a gap: local search is real and wired — `HistoryList.svelte`'s search box calls `HistoryService.getHistoryEntries({query, ...})`, which does substring + date-range filtering over the local IndexedDB store. `PLAN.md`'s unchecked items (`EventBus`, `SyncOrchestrator`, `BackgroundSyncService`, most domain events) are confirmed still genuinely absent from `dotnet-backend`.
 
-Also unconfirmed but likely broken: `refreshToken()` POSTs no body while dotnet's `RefreshToken` endpoint binds a required JSON body.
-
-Not a gap: local search is real and wired — `HistoryList.svelte`'s search box calls `HistoryService.getHistoryEntries({query, ...})`, which does substring + date-range filtering over the local IndexedDB store. `PLAN.md`'s unchecked items (`EventBus`, `SyncOrchestrator`, `BackgroundSyncService`, most domain events) are confirmed still genuinely absent from `dotnet-backend`, not just stale checkboxes.
-
-**Net**: this needs the backend integration layer rebuilt, not finishing touches — bringing `dotnet-backend` online for the extension means adding entityType/entityId as first-class sync-event data end-to-end, query-string JWT support for SSE, and reconciling the route-prefix convention, before any of the Orion/Firefox-Android platform work above is reachable.
+Still open: `BrowserHistory.E2E.Tests` compile errors; the root Playwright suite (`tests/e2e/`) hasn't been run against `dotnet-backend` yet, only the manual smoke flow above and the extension's own build/typecheck.
 
 ## Repository layout
 

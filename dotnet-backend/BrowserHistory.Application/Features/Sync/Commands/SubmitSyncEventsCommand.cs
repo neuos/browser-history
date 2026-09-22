@@ -1,6 +1,8 @@
 using BrowserHistory.Application.Common.Interfaces;
 using BrowserHistory.Application.Common.Models;
+using BrowserHistory.Application.Features.Sync.Models;
 using BrowserHistory.Domain.Entities;
+using BrowserHistory.Domain.Enums;
 using BrowserHistory.Domain.ValueObjects;
 using FluentValidation;
 using MediatR;
@@ -39,18 +41,22 @@ public class SyncEventDtoValidator : AbstractValidator<SyncEventDto>
             .WithMessage("SyncEvent Id is required");
 
         RuleFor(x => x.Timestamp)
-            .NotEmpty()
+            .GreaterThan(0)
             .WithMessage("Timestamp is required")
-            .Must(timestamp => timestamp <= DateTime.UtcNow.AddMinutes(5))
+            .Must(timestamp => timestamp <= DateTimeOffset.UtcNow.AddMinutes(5).ToUnixTimeMilliseconds())
             .WithMessage("Timestamp cannot be more than 5 minutes in the future");
 
         RuleFor(x => x.EventType)
-            .IsInEnum()
+            .Must(eventType => Enum.TryParse<SyncEventType>(eventType, ignoreCase: true, out _))
             .WithMessage("Invalid event type");
 
-        RuleFor(x => x.Metadata)
-            .MaximumLength(1000)
-            .WithMessage("Metadata cannot exceed 1000 characters");
+        RuleFor(x => x.EntityType)
+            .Must(entityType => Enum.TryParse<SyncEntityType>(entityType, ignoreCase: true, out _))
+            .WithMessage("Invalid entity type");
+
+        RuleFor(x => x.EntityId)
+            .NotEmpty()
+            .WithMessage("EntityId is required");
     }
 }
 
@@ -107,11 +113,21 @@ public class SubmitSyncEventsCommandHandler : IRequestHandler<SubmitSyncEventsCo
                     continue;
                 }
 
+                var eventType = Enum.Parse<SyncEventType>(eventDto.EventType, ignoreCase: true);
+                var entityType = Enum.Parse<SyncEntityType>(eventDto.EntityType, ignoreCase: true);
+                var dataJson = eventDto.Data?.GetRawText() ?? "{}";
+                var checksum = Checksum.FromContent(dataJson).ToString();
+                var timestamp = DateTimeOffset.FromUnixTimeMilliseconds(eventDto.Timestamp).UtcDateTime;
+
                 // Create domain entity from DTO
                 var syncEvent = SyncEvent.Create(
+                    eventDto.EntityId,
                     request.DeviceId,
-                    eventDto.EventType,
-                    eventDto.Metadata);
+                    timestamp,
+                    eventType,
+                    entityType,
+                    dataJson,
+                    checksum);
 
                 eventsToProcess.Add(syncEvent);
             }
@@ -134,11 +150,11 @@ public class SubmitSyncEventsCommandHandler : IRequestHandler<SubmitSyncEventsCo
                     {
                         id = e.Id,
                         deviceId = e.DeviceId.ToString(),
-                        timestamp = new DateTimeOffset(e.Timestamp).ToUnixTimeMilliseconds(),
-                        eventType = e.EventType.ToString(),
-                        entityType = "history", // TODO: Extract from metadata
-                        entityId = e.Id, // TODO: Extract from metadata
-                        data = e.Metadata
+                        timestamp = new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+                        eventType = e.EventType.ToString().ToUpperInvariant(),
+                        entityType = e.EntityType.ToString().ToLowerInvariant(),
+                        entityId = e.EntityId,
+                        data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(e.Data)
                     }).ToArray();
 
                     await _sseService.BroadcastToOthersAsync(request.DeviceId.ToString(), new
