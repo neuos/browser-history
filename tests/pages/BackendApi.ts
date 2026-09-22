@@ -7,7 +7,7 @@ export class BackendApi {
       if (!response.ok) return false;
       
       const health = await response.json();
-      return health.status === 'ok';
+      return health.status === 'healthy';
     } catch {
       return false;
     }
@@ -23,7 +23,7 @@ export class BackendApi {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${this.baseUrl}/sync/events?since=0`, { headers });
+      const response = await fetch(`${this.baseUrl}/api/v1/sync/events?since=0`, { headers });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch events: ${response.status}`);

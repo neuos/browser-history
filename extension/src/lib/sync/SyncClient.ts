@@ -106,7 +106,7 @@ export class SyncClient {
   // Device registration
   async registerDevice(serverUrl: string, deviceName: string, sharedSecret: string): Promise<DeviceInfo> {
     try {
-      const response = await fetch(`${serverUrl}/auth/register-device`, {
+      const response = await fetch(`${serverUrl}/api/v1/auth/register-device`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -149,7 +149,7 @@ export class SyncClient {
     }
 
     try {
-      const response = await fetch(`${this.config.serverUrl}/auth/refresh-token`, {
+      const response = await fetch(`${this.config.serverUrl}/api/v1/auth/refresh-token`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.deviceInfo.token}`,
@@ -218,7 +218,7 @@ export class SyncClient {
     if (!this.config || !this.deviceInfo) return
 
     return new Promise((resolve, reject) => {
-      const sseUrl = `${this.config!.serverUrl}/sse/events`
+      const sseUrl = `${this.config!.serverUrl}/api/v1/sse/events`
       
       // Create EventSource with authentication token as query parameter
       const urlWithAuth = `${sseUrl}?token=${encodeURIComponent(this.deviceInfo!.token)}`
@@ -394,12 +394,12 @@ export class SyncClient {
     const events = [...this.eventQueue]
     this.eventQueue = []
 
-    console.log('SyncClient: Sending events to', `${this.config!.serverUrl}/sync/events`)
+    console.log('SyncClient: Sending events to', `${this.config!.serverUrl}/api/v1/sync/events`)
     console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
     
     // Note: deviceId is NOT sent in the request body - it's provided via JWT in Authorization header
     // This ensures security and prevents device ID spoofing
-    const response = await fetch(`${this.config!.serverUrl}/sync/events`, {
+    const response = await fetch(`${this.config!.serverUrl}/api/v1/sync/events`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.deviceInfo!.token}`,
@@ -440,7 +440,7 @@ export class SyncClient {
     }
 
     const since = this.lastDownloadTimestamp
-    const url = `${this.config.serverUrl}/sync/events?since=${since}&exclude_device=true`
+    const url = `${this.config.serverUrl}/api/v1/sync/events?since=${since}&exclude_device=true`
     
     console.log('SyncClient: Fetching events from', url)
     
