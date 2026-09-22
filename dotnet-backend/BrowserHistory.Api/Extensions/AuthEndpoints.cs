@@ -86,7 +86,6 @@ public static class AuthEndpoints
     }
 
     private static async Task<IResult> RefreshToken(
-        RefreshTokenRequest request,
         HttpContext context,
         IMediator mediator,
         CancellationToken cancellationToken)

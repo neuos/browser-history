@@ -148,64 +148,53 @@ public class AuthServiceTests
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithValidRefreshToken_ShouldReturnNewTokens()
+    public async Task RefreshTokenAsync_WithCurrentlyValidAccessToken_ShouldReturnNewTokens()
     {
-        // Arrange
+        // Arrange - the client has no separate refresh-token secret, only its own (still-valid)
+        // access token, so RefreshTokenAsync takes and validates that instead. Get a genuine,
+        // correctly-signed access token the same way the client would: via registration.
         const string deviceName = "Test Device";
-        const string refreshToken = "valid-refresh-token";
-        
-        var deviceUser = new DeviceUser(DeviceId.New(), deviceName, "hashed-secret");
-        
+        const string sharedSecret = "test-shared-secret";
+
         _userManagerMock.Setup(x => x.CreateAsync(It.IsAny<DeviceUser>()))
             .ReturnsAsync(IdentityResult.Success);
         _userManagerMock.Setup(x => x.SetAuthenticationTokenAsync(
-            It.IsAny<DeviceUser>(), 
-            It.IsAny<string>(), 
-            It.IsAny<string>(), 
+            It.IsAny<DeviceUser>(),
+            It.IsAny<string>(),
+            It.IsAny<string>(),
             It.IsAny<string>()))
             .ReturnsAsync(IdentityResult.Success);
 
-        // Setup users collection to include our device user
-        var users = new List<DeviceUser> { deviceUser }.AsQueryable();
-        _userManagerMock.Setup(x => x.Users).Returns(users);
-        
-        _userManagerMock.Setup(x => x.GetAuthenticationTokenAsync(
-            deviceUser, 
-            "BrowserHistory", 
-            "RefreshToken"))
-            .ReturnsAsync(refreshToken);
-        
+        var registerResult = await _authService.RegisterDeviceAsync(deviceName, sharedSecret);
+        var deviceUser = new DeviceUser(registerResult.DeviceId, deviceName, "hashed-secret");
+
+        _userManagerMock.Setup(x => x.FindByIdAsync(registerResult.DeviceId.Value.ToString()))
+            .ReturnsAsync(deviceUser);
         _userManagerMock.Setup(x => x.UpdateAsync(deviceUser))
             .ReturnsAsync(IdentityResult.Success);
-        
         _userManagerMock.Setup(x => x.RemoveAuthenticationTokenAsync(
-            It.IsAny<DeviceUser>(), 
-            It.IsAny<string>(), 
-            It.IsAny<string>()))
+            deviceUser, "BrowserHistory", "RefreshToken"))
             .ReturnsAsync(IdentityResult.Success);
 
         // Act
-        var result = await _authService.RefreshTokenAsync(refreshToken);
+        var result = await _authService.RefreshTokenAsync(registerResult.AccessToken);
 
         // Assert
         result.AccessToken.Should().NotBeNullOrEmpty();
+        result.AccessToken.Should().NotBe(registerResult.AccessToken); // a genuinely new token
         result.RefreshToken.Should().NotBeNullOrEmpty();
-        result.RefreshToken.Should().NotBe(refreshToken); // Should be a new refresh token
     }
 
     [Fact]
-    public async Task RefreshTokenAsync_WithInvalidRefreshToken_ShouldThrowUnauthorizedException()
+    public async Task RefreshTokenAsync_WithInvalidAccessToken_ShouldThrowUnauthorizedException()
     {
         // Arrange
-        const string invalidRefreshToken = "invalid-refresh-token";
-        
-        var users = new List<DeviceUser>().AsQueryable();
-        _userManagerMock.Setup(x => x.Users).Returns(users);
+        const string invalidAccessToken = "not-a-real-jwt";
 
         // Act & Assert
-        await _authService.Invoking(s => s.RefreshTokenAsync(invalidRefreshToken))
+        await _authService.Invoking(s => s.RefreshTokenAsync(invalidAccessToken))
             .Should().ThrowAsync<UnauthorizedAccessException>()
-            .WithMessage("Invalid refresh token");
+            .WithMessage("Invalid or expired access token");
     }
 
     private static Mock<UserManager<DeviceUser>> CreateUserManagerMock()
