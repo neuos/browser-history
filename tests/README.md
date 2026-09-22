@@ -50,10 +50,10 @@ The main fix implemented ensures that cross-browser sync events immediately upda
 
 ## Prerequisites
 
-1. **Backend Server**: The sync server must be running at `http://localhost:8000`
+1. **Backend Server**: The sync server must be running at `http://localhost:5165`
    ```bash
-   cd backend
-   deno run --allow-all src/main.ts
+   cd dotnet-backend
+   dotnet run --project BrowserHistory.Api
    ```
 
 2. **Extension Build**: The extension must be built before testing
@@ -162,7 +162,7 @@ bun run test:e2e:report
 
 The configuration includes:
 - **Chrome Extension Loading**: Automatically loads the built extension
-- **Backend Server**: Starts the Deno backend server
+- **Backend Server**: Starts the .NET backend server (`dotnet-backend`)
 - **Test Parallelization**: Runs tests efficiently
 - **Reporting**: Generates HTML reports
 
@@ -201,7 +201,7 @@ This opens the Playwright UI for interactive test development and debugging.
 
 ### Mock Data
 Tests use predictable test data:
-- Server URL: `http://localhost:8000`
+- Server URL: `http://localhost:5165`
 - Device names: `Test Device - Playwright`, `Test Device 2 - Playwright`
 - Shared secret: `test-secret-e2e`
 - Test URLs: `https://example.com`, `https://httpbin.org/get`
@@ -218,8 +218,8 @@ Tests are designed to be isolated and don't require cleanup between runs.
    - Check build output in `extension/.output/chrome-mv3`
 
 2. **Backend not running**
-   - Start backend: `cd backend && deno run --allow-all src/main.ts`
-   - Verify health: `curl http://localhost:8000/health`
+   - Start backend: `cd dotnet-backend && dotnet run --project BrowserHistory.Api`
+   - Verify health: `curl http://localhost:5165/health`
 
 3. **Timeout errors**
    - Backend might be slow to start

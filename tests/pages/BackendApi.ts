@@ -1,5 +1,5 @@
 export class BackendApi {
-  constructor(private baseUrl: string = 'http://localhost:8000') {}
+  constructor(private baseUrl: string = 'http://localhost:5165') {}
 
   async checkHealth(): Promise<boolean> {
     try {

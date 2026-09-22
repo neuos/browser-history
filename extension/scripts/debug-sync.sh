@@ -8,12 +8,12 @@ echo
 
 # Test 1: Check if backend is running
 echo "1. Testing backend health..."
-if curl -s http://localhost:8000/health > /dev/null; then
+if curl -s http://localhost:5165/health > /dev/null; then
     echo "✅ Backend is running"
-    curl -s http://localhost:8000/health | jq
+    curl -s http://localhost:5165/health | jq
 else
     echo "❌ Backend is not running or not accessible"
-    echo "Please start the backend with: cd backend && deno task dev"
+    echo "Please start the backend with: cd dotnet-backend && dotnet run --project BrowserHistory.Api"
     exit 1
 fi
 
@@ -21,7 +21,7 @@ echo
 
 # Test 2: Test device registration
 echo "2. Testing device registration..."
-DEVICE_RESPONSE=$(curl -s -X POST http://localhost:8000/auth/register-device \
+DEVICE_RESPONSE=$(curl -s -X POST http://localhost:5165/auth/register-device \
   -H "Content-Type: application/json" \
   -d '{"deviceName": "debug-extension-device", "secret": "secret"}')
 
@@ -41,7 +41,7 @@ echo
 # Test 3: Test sync events endpoint
 echo "3. Testing sync events endpoint..."
 CURRENT_TIME=$(date +%s)000
-SYNC_RESPONSE=$(curl -s -X POST http://localhost:8000/sync/events \
+SYNC_RESPONSE=$(curl -s -X POST http://localhost:5165/sync/events \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
@@ -79,7 +79,7 @@ echo
 # Test 4: Check backend database
 echo "4. Checking backend database..."
 EVENTS_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8000/sync/events?since=0")
+  "http://localhost:5165/sync/events?since=0")
 
 if echo "$EVENTS_RESPONSE" | jq -e '.events' > /dev/null; then
     echo "✅ Backend database has events:"
@@ -104,7 +104,7 @@ echo "   - Enable Developer mode"
 echo "   - Load unpacked: extension/.output/chrome-mv3"
 echo
 echo "3. ⚙️  Set up sync in extension popup:"
-echo "   - Server URL: http://localhost:8000"
+echo "   - Server URL: http://localhost:5165"
 echo "   - Device Name: test-device"
 echo "   - Shared Secret: secret"
 echo

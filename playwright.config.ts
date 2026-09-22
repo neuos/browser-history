@@ -40,8 +40,8 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: [
     {
-      command: 'cd backend && deno run --allow-all src/main.ts',
-      port: 8000,
+      command: 'cd dotnet-backend && dotnet run --project BrowserHistory.Api --launch-profile http',
+      port: 5165,
       reuseExistingServer: !process.env.CI,
     },
   ],

@@ -18,7 +18,7 @@
   
   // Setup form variables
   let isSetupMode = false;
-  let serverUrl = 'http://localhost:8000';
+  let serverUrl = 'http://localhost:5165';
   let deviceName = '';
   let sharedSecret = '';
   let isSetupLoading = false;
@@ -219,7 +219,7 @@
               id="serverUrl"
               type="url"
               bind:value={serverUrl}
-              placeholder="http://localhost:8000"
+              placeholder="http://localhost:5165"
               disabled={isSetupLoading}
             />
           </div>
