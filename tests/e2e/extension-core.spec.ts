@@ -20,9 +20,9 @@ test.describe('Browser History Extension - Core Functionality', () => {
 
   test('should configure sync successfully', async ({ popupPage }) => {
     await popupPage.setupSync(
-      'http://localhost:8000',
+      'http://localhost:5165',
       'Test Device - Playwright E2E',
-      'secret'  // Use the actual shared secret from backend/.env
+      'secret'  // Use the actual shared secret from dotnet-backend/BrowserHistory.Api/appsettings.Development.json
     );
     
     const status = await popupPage.getSyncStatus();
@@ -41,7 +41,7 @@ test.describe('Browser History Extension - Core Functionality', () => {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
         await popupPage.setupSync(
-          'http://localhost:8000',
+          'http://localhost:5165',
           'Test Device - History Test',
           'secret'
         );
@@ -86,7 +86,7 @@ test.describe('Browser History Extension - Core Functionality', () => {
     
     if (!isConfigured) {
       await popupPage.setupSync(
-        'http://localhost:8000',
+        'http://localhost:5165',
         'Test Device - Disconnect Test',
         'secret'
       );
@@ -108,7 +108,7 @@ test.describe('Browser History Extension - Core Functionality', () => {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
         await popupPage.setupSync(
-          'http://localhost:8000',
+          'http://localhost:5165',
           'Test Device - SSE Test',
           'secret'
         );
@@ -135,7 +135,7 @@ test.describe('Browser History Extension - Core Functionality', () => {
       const isConfigured = await popupPage.isConfigured();
       if (!isConfigured) {
         await popupPage.setupSync(
-          'http://localhost:8000',
+          'http://localhost:5165',
           'Test Device - Auto Update',
           'secret'
         );

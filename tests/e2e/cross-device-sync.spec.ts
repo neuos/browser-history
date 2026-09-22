@@ -90,7 +90,7 @@ test.describe.serial('Cross-Device Sync Notification', () => {
     // Set up sync on the device
     await popupPage1.goto(extensionId1);
     await popupPage1.setupSync(
-      'http://localhost:8000',
+      'http://localhost:5165',
       'Test Device - Real Time Updates',
       'secret'
     );

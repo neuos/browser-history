@@ -5,15 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "bun run test:setup && bun run test:all",
-    "test:all": "bun run test:backend && bun run test:extension && bun run test:e2e",
-    "test:quick": "bun run test:backend:unit && bun run test:extension:unit",
+    "test:all": "bun run test:extension && bun run test:e2e",
+    "test:quick": "bun run test:extension:unit",
     "test:ci": "bun run test:clean && bun run test:setup && bun run test:all",
-    
-    "test:backend": "bun run test:backend:unit && bun run test:backend:integration",
-    "test:backend:unit": "cd backend && deno test --allow-all src/tests/",
-    "test:backend:integration": "cd backend && chmod +x test.sh && ./test.sh",
-    "test:backend:watch": "cd backend && deno test --allow-all --watch src/tests/",
-    
+
     "test:extension": "bun run test:extension:unit && bun run test:extension:build",
     "test:extension:unit": "echo 'Extension unit tests not yet implemented'",
     "test:extension:build": "cd extension && bun run build",
@@ -28,18 +23,14 @@
     "test:e2e:debug": "bun run build:extension && playwright test tests/e2e/ --debug",
     "test:e2e:report": "playwright show-report",
     
-    "debug:db": "cd backend && deno run --allow-all scripts/debug-database.ts",
-    "debug:sync": "cd backend && deno run --allow-all scripts/debug-sync.ts",
-    "debug:events": "cd backend && deno run --allow-all scripts/debug-events.ts",
-    "debug:env": "cd backend && deno run --allow-all scripts/debug-env.ts",
     "debug:extension": "cd extension && chmod +x scripts/debug-sync.sh && ./scripts/debug-sync.sh",
-    
+
     "test:setup": "chmod +x test-setup.sh && ./test-setup.sh",
     "test:clean": "bun run test:clean:artifacts && bun run test:clean:db",
-    "test:clean:artifacts": "rm -rf test-results playwright-report *.png backend/*.db",
-    "test:clean:db": "rm -f backend/data/test*.db backend/test-*.db",
-    
-    "dev:backend": "cd backend && deno task dev",
+    "test:clean:artifacts": "rm -rf test-results playwright-report debug-disconnect-panel.png debug-sse-connection.png",
+    "test:clean:db": "rm -f dotnet-backend/data/browser-history-dev.db dotnet-backend/data/browser-history.db",
+
+    "dev:backend": "cd dotnet-backend && dotnet run --project BrowserHistory.Api",
     "dev:extension": "cd extension && bun run dev",
     "build:all": "bun run build:extension",
     "build:extension": "cd extension && bun run build"

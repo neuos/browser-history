@@ -21,11 +21,6 @@ web-ext.config.ts
 extension/public/icon/*.png
 extension/public/icon-dark/*.png
 
-# Backend data
-backend/data/
-backend/.env
-backend/.env.local
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

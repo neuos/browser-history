@@ -71,7 +71,7 @@ describe('SyncClient Callback Mechanism', () => {
       // Mock successful config loading
       mockBrowser.storage.local.get.mockResolvedValue({
         syncConfig: {
-          serverUrl: 'http://localhost:8000',
+          serverUrl: 'http://localhost:5165',
           deviceName: 'Test Device',
           sharedSecret: 'secret',
           token: 'test-token',
@@ -141,7 +141,7 @@ describe('SyncClient Callback Mechanism', () => {
       // Mock successful config loading
       mockBrowser.storage.local.get.mockResolvedValue({
         syncConfig: {
-          serverUrl: 'http://localhost:8000',
+          serverUrl: 'http://localhost:5165',
           deviceName: 'Test Device',
           sharedSecret: 'secret',
           token: 'test-token',
@@ -190,7 +190,7 @@ describe('SyncClient Callback Mechanism', () => {
       // Mock successful config loading
       mockBrowser.storage.local.get.mockResolvedValue({
         syncConfig: {
-          serverUrl: 'http://localhost:8000',
+          serverUrl: 'http://localhost:5165',
           deviceName: 'Test Device',
           sharedSecret: 'secret',
           token: 'test-token',
@@ -247,7 +247,7 @@ describe('SyncClient Callback Mechanism', () => {
       // Mock successful config loading
       mockBrowser.storage.local.get.mockResolvedValue({
         syncConfig: {
-          serverUrl: 'http://localhost:8000',
+          serverUrl: 'http://localhost:5165',
           deviceName: 'Test Device',
           sharedSecret: 'secret',
           token: 'test-token',
@@ -347,7 +347,7 @@ describe('SyncClient Callback Mechanism', () => {
     it('should handle malformed SSE messages without calling callback', async () => {
       mockBrowser.storage.local.get.mockResolvedValue({
         syncConfig: {
-          serverUrl: 'http://localhost:8000',
+          serverUrl: 'http://localhost:5165',
           deviceName: 'Test Device',
           sharedSecret: 'secret',
           token: 'test-token',

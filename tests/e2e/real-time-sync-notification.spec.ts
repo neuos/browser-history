@@ -57,7 +57,7 @@ test.describe('Real-time Sync Notification', () => {
     // Set up sync
     await popupPage.goto(extensionId);
     await popupPage.setupSync(
-      'http://localhost:8000',
+      'http://localhost:5165',
       'Test Device - Real-time Sync',
       'secret'
     );
@@ -123,7 +123,7 @@ test.describe('Real-time Sync Notification', () => {
     // Try to configure sync only if not already configured
     try {
       await popupPage.setupSync(
-        'http://localhost:8000',
+        'http://localhost:5165',
         'Test Device - Event Handler',
         'secret'
       );

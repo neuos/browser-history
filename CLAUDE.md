@@ -17,11 +17,13 @@ Correcting an earlier wrong assumption in this doc: Orion does **not** need a Sa
 
 Firefox for Android's extension support/distribution model has not been investigated in this repo — don't assume the `firefox-mv2` desktop build behaves the same there without checking.
 
-### Implementation status — audited 2026-09-22
+### Implementation status — audited 2026-09-22, backend removal landed same day
 
-What builds/passes right now: `dotnet-backend` solution builds clean and 248/248 tests pass (but `BrowserHistory.E2E.Tests` isn't in the `.sln` and fails to compile standalone — 13 errors from the pre-DTO-reorg namespaces, silently dropped rather than fixed). Legacy `backend/` (Deno) builds and its 57 test steps pass. `extension/` builds clean and `bun run check` has 0 type errors.
+What builds/passes right now: `dotnet-backend` solution builds clean and 248/248 tests pass (but `BrowserHistory.E2E.Tests` isn't in the `.sln` and fails to compile standalone — 13 errors from the pre-DTO-reorg namespaces, silently dropped rather than fixed). `extension/` builds clean and `bun run check` has 0 type errors.
 
-**The extension, as committed, only works against the legacy Deno `backend/` — not `dotnet-backend`.** Three independent, confirmed breaks if you point it at `dotnet-backend`:
+**Update**: the legacy Deno `backend/` described below has since been deleted (`dotnet-backend` is now the only backend in the repo) — but the findings below are about a *sync-contract mismatch* between the extension and `dotnet-backend`, which removing the old backend does not fix. They're recorded here as the still-open work:
+
+**At the time of this audit, the extension as committed only worked against the legacy Deno `backend/` — not `dotnet-backend`.** Three independent, confirmed breaks when pointed at `dotnet-backend`, none fixed yet:
 - **Route prefix**: `SyncClient.ts` calls unprefixed paths (`/auth/register-device`, `/sync/events`, `/sse/events`) matching legacy `backend/src/main.ts`'s unprefixed mounts and `SyncSetup.svelte`'s default `http://localhost:8000`. `dotnet-backend` mounts everything under `/api/v1/...`.
 - **Sync event shape**: the extension's `applySyncEvent` switches on `event.entityType`/`entityId` (history vs. page), but dotnet's `SyncEventDto` (`GetSyncEventsQuery.cs`) has no such fields — `SyncEvent` in `BrowserHistory.Domain` was never given an entity-type/entity-id concept at all. This is the core routing mechanism the whole sync protocol depends on, and it doesn't exist server-side yet. `SubmitSyncEventsCommand.cs` also hardcodes `entityType = "history" // TODO` when broadcasting, mislabeling Page syncs.
 - **SSE auth**: the extension passes the JWT as `?token=` (EventSource can't set headers); dotnet's `SSEEndpoints.cs` requires standard Bearer auth via `DevicePolicy` with no query-string-token handling wired in `AuthenticationConfiguration.cs` — SSE against dotnet-backend 401s.
@@ -34,11 +36,10 @@ Not a gap: local search is real and wired — `HistoryList.svelte`'s search box 
 
 ## Repository layout
 
-This is a monorepo with three independent components plus a shared Playwright test suite:
+This is a monorepo with two independent components plus a shared Playwright test suite:
 
-- **`dotnet-backend/`** — .NET 9 Clean Architecture sync server. **This is the active backend under development** (every recent commit touches only this directory).
-- **`backend/`** — legacy Deno + Hono + SQLite sync server that `dotnet-backend` is replacing. Treat it as reference/legacy unless explicitly asked to change it.
-- **`extension/`** — WXT + Svelte 5 browser extension (Chrome MV3, Firefox MV2, Safari) that captures history and syncs against one of the backends.
+- **`dotnet-backend/`** — .NET 9 Clean Architecture sync server. The only backend in the repo — the legacy Deno + Hono backend that used to live in `backend/` was removed (see Implementation status below); don't recreate it or reference it as if it still exists.
+- **`extension/`** — WXT + Svelte 5 browser extension (Chrome MV3, Firefox MV2, Safari) that captures history and syncs against the backend.
 - **`tests/`** — root-level Playwright E2E suite exercising the built extension against a running backend.
 
 Do not assume changes in one component require touching the others — they communicate only over the HTTP/SSE API contract.
@@ -75,20 +76,6 @@ Test projects mirror the layer they test (`*.Domain.Tests`, `*.Application.Tests
 
 Native AOT is configured in `BrowserHistory.Api.csproj` (`PublishAot`) but currently disabled while testing infra is built out — don't re-enable it without checking that flag first.
 
-## `backend/` (legacy Deno server)
-
-Only touch this if explicitly asked to work on the legacy server rather than `dotnet-backend`.
-
-```bash
-cd backend
-deno task dev              # dev server with watch, port 8000
-deno task db:migrate       # init/migrate SQLite schema
-deno task test             # unit tests (src/tests/)
-deno task test:integration # integration tests — requires the server already running (./test.sh)
-```
-
-Structure: `src/main.ts` entry point, `src/routes/{auth,sync,history,devices}.ts`, `src/database/database.ts` (SQLite via Deno's `node:sqlite`), `src/websocket/manager.ts`. Auth uses a shared secret for initial device registration plus JWT for subsequent requests.
-
 ## `extension/`
 
 ```bash
@@ -115,8 +102,6 @@ bun run test:e2e:core         # extension-core.spec.ts only
 bun run test:e2e:sync         # cross-device-sync.spec.ts only
 bun run test:e2e:headed       # headed mode
 bun run test:e2e:debug        # Playwright debug mode
-bun run debug:sync            # cd backend && deno run scripts/debug-sync.ts
-bun run debug:db              # cd backend && deno run scripts/debug-database.ts
 ```
 
-These tests currently target the legacy Deno `backend` (they start it via the scripts above, not `dotnet-backend`) and drive the real built extension via Playwright's persistent browser context — there's no mocking of the extension or backend.
+`playwright.config.ts`'s `webServer` starts `dotnet-backend` (`dotnet run --project BrowserHistory.Api`, port 5165) before running. Tests drive the real built extension via Playwright's persistent browser context — there's no mocking of the extension or backend. As of the 2026-09-22 audit below, these tests are expected to fail against `dotnet-backend` until the sync-contract fixes described there land — that's a known, not-yet-fixed state, not a regression to chase.

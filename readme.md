@@ -10,8 +10,11 @@ browser-history/
 │   ├── src/           # Extension source code
 │   ├── public/        # Static assets
 │   └── package.json   # Extension dependencies
-├── backend/           # Sync server (Deno + Hono + SQLite)
-│   ├── src/          # Server source code
+├── dotnet-backend/    # Sync server (.NET 9, Clean Architecture, EF Core + SQLite)
+│   ├── BrowserHistory.Api/            # Minimal API host
+│   ├── BrowserHistory.Application/    # CQRS handlers, DTOs
+│   ├── BrowserHistory.Infrastructure/ # EF Core, repositories, auth
+│   ├── BrowserHistory.Domain/         # Entities, value objects
 │   ├── Dockerfile    # Container configuration
 │   └── docker-compose.yml
 └── README.md         # This file
@@ -23,22 +26,21 @@ browser-history/
 - **Metadata Extraction** from web pages (Open Graph, Twitter Cards, etc.)
 - **Privacy-focused** - designed for personal use
 - **Docker-based Backend** for easy deployment
-- **Modern Tech Stack** - Deno, TypeScript, Svelte
+- **Modern Tech Stack** - .NET 9, TypeScript, Svelte
 
 ## Quick Start
 
 ### 1. Backend Setup
 
 ```bash
-cd backend
-cp .env.example .env
-# Edit .env with your secrets
+cd dotnet-backend
+# Edit BrowserHistory.Api/appsettings.Development.json with your secrets
 
 # Using Docker (recommended)
-docker-compose up -d
+docker compose -f docker-compose.dev.yml up
 
-# Or using Deno directly
-deno task dev
+# Or using the .NET SDK directly
+dotnet run --project BrowserHistory.Api
 ```
 
 ### 2. Extension Setup
@@ -59,7 +61,7 @@ Then load the extension in your browser from the `.output` directory.
 
 ## Documentation
 
-- [Backend Documentation](./backend/README.md) - Server setup, API, deployment
+- [Backend Deployment Guide](./dotnet-backend/DEPLOYMENT.md) - Server setup, deployment
 - [Extension Documentation](./extension/README.md) - Extension development and usage
 - [Testing Documentation](./tests/README.md) - Comprehensive test suite documentation
 - [Test Suite Organization](./TEST_SUITE_ORGANIZATION.md) - Test structure and organization details
@@ -101,7 +103,7 @@ The test suite verifies the implemented fix that ensures cross-device sync event
 The system uses an event-sourcing approach where all changes are stored as events and then applied to build the current state. This ensures reliable synchronization across devices.
 
 ```
-Extension ←→ WebSocket/HTTP ←→ Backend Server ←→ SQLite Database
+Extension ←→ Server-Sent Events/HTTP ←→ Backend Server ←→ SQLite Database
 ```
 
 ## Security
@@ -116,7 +118,7 @@ Extension ←→ WebSocket/HTTP ←→ Backend Server ←→ SQLite Database
 Both the extension and backend can be developed independently:
 
 - **Extension**: Hot-reload development server with WXT
-- **Backend**: Deno with watch mode for rapid iteration
+- **Backend**: .NET with `dotnet watch` for rapid iteration
 
 ### VS Code Launch Configuration
 
@@ -130,17 +132,10 @@ The project includes VS Code launch configurations for easy development without 
 
 #### Testing Options
 
-- **🧪 Run All Tests**: Executes backend unit tests and integration tests sequentially
-- **🧪 Run Backend Unit Tests**: Runs Deno unit tests
-- **🧪 Run Backend Integration Tests**: Runs integration test suite
+- **🧪 Run Backend Tests**: Runs the .NET test suite (`dotnet test`)
 - **🧪 Run E2E Tests**: Runs Playwright end-to-end tests
 - **🧪 Run E2E Tests (Headed)**: Runs E2E tests with visible browser
 - **🐛 Debug E2E Tests**: Runs E2E tests in debug mode
-
-#### Debug Tools
-
-- **🔧 Debug Database**: Inspect database state and contents
-- **🔧 Debug Sync**: Debug synchronization processes
 
 Simply open the VS Code Command Palette (`Cmd+Shift+P` on macOS) and type "Debug: Select and Start Debugging" to see all available options.
 
