@@ -53,9 +53,50 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid shared secret");
         }
 
+        // Registration is idempotent by device name: a device whose access token has fully
+        // expired (e.g. offline long enough that refresh - which requires a still-valid token -
+        // can no longer help it) has no other way back in except registering again. If it does,
+        // re-authenticate the existing device (same DeviceId, fresh tokens) instead of failing
+        // on the DeviceName uniqueness constraint the domain Device/DeviceUser rows both enforce.
+        // Sync FirstOrDefault, not FirstOrDefaultAsync: UserManager.Users is a bare IQueryable,
+        // and EF Core's async LINQ extensions require the provider to implement
+        // IAsyncQueryProvider, which a mocked UserManager in tests doesn't. Query volume on this
+        // single-user-family personal server is trivial, so the sync-over-a-local-SQLite-query
+        // cost is not a real concern.
+        var existingDeviceUser = _userManager.Users
+            .FirstOrDefault(u => u.DeviceName == deviceName);
+
+        if (existingDeviceUser != null)
+        {
+            if (!existingDeviceUser.IsActive)
+            {
+                existingDeviceUser.Reactivate();
+            }
+            else
+            {
+                existingDeviceUser.UpdateLastSeen();
+            }
+            await _userManager.UpdateAsync(existingDeviceUser);
+
+            var existingAccessToken = GenerateAccessToken(existingDeviceUser);
+            var existingRefreshToken = GenerateRefreshToken();
+
+            await _userManager.RemoveAuthenticationTokenAsync(
+                existingDeviceUser,
+                "BrowserHistory",
+                "RefreshToken");
+            await _userManager.SetAuthenticationTokenAsync(
+                existingDeviceUser,
+                "BrowserHistory",
+                "RefreshToken",
+                existingRefreshToken);
+
+            return (existingDeviceUser.DeviceId, existingAccessToken, existingRefreshToken);
+        }
+
         // Generate new device ID
         var deviceId = DeviceId.New();
-        
+
         // Hash the shared secret for storage
         var hashedSecret = HashSharedSecret(sharedSecret);
 
@@ -76,9 +117,9 @@ public class AuthService : IAuthService
 
         // Store refresh token
         await _userManager.SetAuthenticationTokenAsync(
-            deviceUser, 
-            "BrowserHistory", 
-            "RefreshToken", 
+            deviceUser,
+            "BrowserHistory",
+            "RefreshToken",
             refreshToken);
 
         return (deviceId, accessToken, refreshToken);

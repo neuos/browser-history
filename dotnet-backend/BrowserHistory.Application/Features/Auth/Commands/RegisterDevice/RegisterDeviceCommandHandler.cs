@@ -41,11 +41,19 @@ public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDevic
         // The Sync/History/Page features all look devices up in the main database via
         // IDeviceRepository, which the Identity database above doesn't populate - create the
         // matching domain aggregate here so a freshly-registered device can actually sync.
-        var device = Device.Create(deviceId, request.DeviceName);
-        await _deviceRepository.CreateAsync(device, cancellationToken);
-        var syncEvent = SyncEvent.DeviceConnected(deviceId);
-        await _unitOfWork.SyncEvents.CreateAsync(syncEvent, cancellationToken);
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        // AuthService.RegisterDeviceAsync is idempotent by device name (re-authenticates an
+        // existing device rather than erroring), so this can be called again for a device that
+        // already has a domain Device row - only create it the first time, or this would violate
+        // the DeviceName uniqueness constraint.
+        var existingDevice = await _deviceRepository.GetByIdAsync(deviceId, cancellationToken);
+        if (existingDevice == null)
+        {
+            var device = Device.Create(deviceId, request.DeviceName);
+            await _deviceRepository.CreateAsync(device, cancellationToken);
+            var syncEvent = SyncEvent.DeviceConnected(deviceId);
+            await _unitOfWork.SyncEvents.CreateAsync(syncEvent, cancellationToken);
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         // Calculate expiry time based on configuration
         var accessTokenExpiryMinutes = int.TryParse(_configuration["Jwt:AccessTokenExpiryMinutes"], out var minutes) ? minutes : 60;

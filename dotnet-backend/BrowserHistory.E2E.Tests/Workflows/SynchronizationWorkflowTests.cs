@@ -75,6 +75,41 @@ public class SynchronizationWorkflowTests : IClassFixture<E2ETestWebApplicationF
     }
 
     [Fact]
+    public async Task Registering_Same_Device_Name_Again_Should_Reauthenticate_Not_Duplicate()
+    {
+        // A device whose access token has fully expired (routine for a phone offline for hours -
+        // the refresh endpoint can only extend a token that hasn't expired yet, so it has no
+        // other way back in) falls back to registering again. That must re-authenticate the
+        // existing device - same DeviceId, so its sync history stays attributed to it - rather
+        // than failing on the DeviceName uniqueness constraint or creating a duplicate Device row.
+        await _factory.ClearTestDataAsync();
+        var deviceName = $"Re-registration Test-{Guid.NewGuid()}";
+
+        var first = await _client.PostAsJsonAsync("/api/v1/auth/register-device",
+            new { deviceName, secret = SharedSecret });
+        first.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstResult = await first.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+
+        var second = await _client.PostAsJsonAsync("/api/v1/auth/register-device",
+            new { deviceName, secret = SharedSecret });
+        second.StatusCode.Should().Be(HttpStatusCode.OK);
+        var secondResult = await second.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+
+        secondResult!.DeviceId.Should().Be(firstResult!.DeviceId, "re-registration must reuse the same device identity");
+        secondResult.Token.Should().NotBe(firstResult.Token, "each registration should still issue a fresh token");
+
+        // The re-issued token must actually work end to end, not just look well-formed.
+        var submitResponse = await SubmitEventsAsync(secondResult.Token,
+            HistoryEvent(Guid.NewGuid().ToString(), "https://example.com", "Example"));
+        submitResponse.processedCount.Should().Be(1);
+
+        // Exactly one Device row for this name - no duplicate created on the second registration.
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
+        context.Devices.Count(d => d.DeviceName == deviceName).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Incremental_Sync_Should_Only_Return_Events_Since_Given_Timestamp()
     {
         // Arrange

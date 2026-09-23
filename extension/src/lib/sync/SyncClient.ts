@@ -13,6 +13,7 @@ export class SyncClient {
   private deviceInfo: DeviceInfo | null = null
   private eventSource: EventSource | null = null
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private reconnectAttempts = 0
   private connectionCheckTimer: ReturnType<typeof setInterval> | null = null
   private eventQueue: SyncEvent[] = []
   private isProcessing = false
@@ -195,13 +196,24 @@ export class SyncClient {
   // per session will silently 401 on every sync from then on once the token expires, with events
   // piling up in the queue forever since 401 isn't treated as a terminal error either.
   private async ensureTokenFresh(): Promise<void> {
-    if (!this.deviceInfo) return
+    if (!this.deviceInfo || !this.config) return
 
     const tokenAge = Date.now() - this.deviceInfo.tokenIssuedAt
     const tokenLifetime = this.deviceInfo.expiresIn * 1000
 
     if (tokenAge > tokenLifetime * 0.8) { // Refresh when 80% expired
-      await this.refreshToken()
+      try {
+        await this.refreshToken()
+      } catch (refreshError) {
+        // The server's refresh endpoint can only extend a token that hasn't expired yet - if
+        // this device has been offline/suspended long enough that the token is already fully
+        // dead (routine for a phone that's been asleep for hours), refresh will 401 forever with
+        // no way back. Fall back to registering again: the server treats registration as
+        // idempotent by device name, so this re-authenticates the SAME device (same DeviceId,
+        // same local history) rather than creating a duplicate.
+        console.warn('SyncClient: Token refresh failed, falling back to re-registration:', refreshError)
+        await this.registerDevice(this.config.serverUrl, this.config.deviceName, this.config.sharedSecret)
+      }
     }
   }
 
@@ -225,10 +237,15 @@ export class SyncClient {
       
       // Sync pending events
       await this.performBidirectionalSync()
-      
+
       // Start periodic connection check
       this.startConnectionMonitoring()
-      
+
+      // A full connect() cycle made it through without throwing - reset backoff so a future
+      // disconnect starts retrying quickly again instead of picking up at whatever delay this
+      // outage had grown to.
+      this.reconnectAttempts = 0
+
     } catch (error) {
       console.error('Connection failed:', error)
       this.scheduleReconnect()
@@ -311,7 +328,18 @@ export class SyncClient {
 
   private scheduleReconnect(): void {
     if (this.reconnectTimer) return
-    
+
+    // Exponential backoff (5s, 10s, 20s, ... capped at 5min) instead of a flat 5-second retry.
+    // A flat retry means a device that can never recover on its own (e.g. the old bug where a
+    // fully-expired token made every reconnect attempt fail forever) hammers the server
+    // indefinitely, every 5 seconds, permanently. registerDevice()/refreshToken() succeeding
+    // resets reconnectAttempts back to 0 via connect(), so a real, working reconnect still
+    // recovers promptly - backoff only grows while genuinely stuck.
+    const delayMs = Math.min(5000 * Math.pow(2, this.reconnectAttempts), 5 * 60 * 1000)
+    this.reconnectAttempts++
+
+    console.log(`SyncClient: Scheduling reconnect attempt ${this.reconnectAttempts} in ${delayMs}ms`)
+
     this.reconnectTimer = setTimeout(async () => {
       this.reconnectTimer = null
       try {
@@ -321,7 +349,7 @@ export class SyncClient {
         console.error('SyncClient: Reconnection failed, will retry:', error)
         this.scheduleReconnect()
       }
-    }, 5000) // Retry every 5 seconds
+    }, delayMs)
   }
 
   private startConnectionMonitoring(): void {
@@ -448,11 +476,19 @@ export class SyncClient {
       if (response.status === 401 && !retryingAfterRefresh) {
         console.warn('SyncClient: Upload got 401, attempting token refresh and one retry')
         try {
-          await this.refreshToken()
+          try {
+            await this.refreshToken()
+          } catch (refreshError) {
+            // Fully-expired token - refresh can't help, fall back to re-registering (idempotent
+            // by device name server-side, so this re-authenticates the same device).
+            if (!this.config) throw refreshError
+            console.warn('SyncClient: Refresh failed, falling back to re-registration:', refreshError)
+            await this.registerDevice(this.config.serverUrl, this.config.deviceName, this.config.sharedSecret)
+          }
           this.eventQueue.unshift(...events)
           return await this.uploadPendingEvents(true)
         } catch (refreshError) {
-          console.error('SyncClient: Token refresh after 401 failed:', refreshError)
+          console.error('SyncClient: Token refresh/re-registration after 401 failed:', refreshError)
           // fall through - treat like any other unrecoverable-this-round failure below
         }
       }
@@ -503,10 +539,16 @@ export class SyncClient {
       if (response.status === 401 && !retryingAfterRefresh) {
         console.warn('SyncClient: Download got 401, attempting token refresh and one retry')
         try {
-          await this.refreshToken()
+          try {
+            await this.refreshToken()
+          } catch (refreshError) {
+            if (!this.config) throw refreshError
+            console.warn('SyncClient: Refresh failed, falling back to re-registration:', refreshError)
+            await this.registerDevice(this.config.serverUrl, this.config.deviceName, this.config.sharedSecret)
+          }
           return await this.downloadEventsFromOtherDevices(true)
         } catch (refreshError) {
-          console.error('SyncClient: Token refresh after 401 failed:', refreshError)
+          console.error('SyncClient: Token refresh/re-registration after 401 failed:', refreshError)
         }
       }
 
