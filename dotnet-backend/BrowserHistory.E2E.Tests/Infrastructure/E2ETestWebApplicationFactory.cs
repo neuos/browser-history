@@ -120,8 +120,6 @@ public class E2ETestWebApplicationFactory : WebApplicationFactory<Program>, IAsy
         var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
 
         context.SyncEvents.RemoveRange(context.SyncEvents);
-        context.HistoryNodes.RemoveRange(context.HistoryNodes);
-        context.Pages.RemoveRange(context.Pages);
         context.Devices.RemoveRange(context.Devices);
 
         await context.SaveChangesAsync();

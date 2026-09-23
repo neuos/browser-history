@@ -17,32 +17,6 @@ public interface IDeviceRepository
 }
 
 /// <summary>
-/// Repository interface for HistoryNode operations
-/// </summary>
-public interface IHistoryRepository
-{
-    Task<HistoryNode?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<HistoryNode?> GetByUrlAsync(Url url, CancellationToken cancellationToken = default);
-    Task<IEnumerable<HistoryNode>> GetRecentAsync(int count = 100, CancellationToken cancellationToken = default);
-    Task<IEnumerable<HistoryNode>> GetByDeviceAsync(DeviceId deviceId, CancellationToken cancellationToken = default);
-    Task<IEnumerable<HistoryNode>> SearchAsync(string searchTerm, int limit = 50, CancellationToken cancellationToken = default);
-    Task<HistoryNode> CreateAsync(HistoryNode historyNode, CancellationToken cancellationToken = default);
-    Task<HistoryNode> UpdateAsync(HistoryNode historyNode, CancellationToken cancellationToken = default);
-    Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
-    Task<(IEnumerable<HistoryNode> Entries, int TotalCount)> GetHistoryEntriesAsync(
-        DateTime? since = null,
-        DateTime? until = null,
-        int skip = 0,
-        int take = 50,
-        CancellationToken cancellationToken = default);
-    Task<(IEnumerable<HistoryNode> Results, int TotalCount)> SearchHistoryAsync(
-        string searchTerm,
-        int skip = 0,
-        int take = 50,
-        CancellationToken cancellationToken = default);
-}
-
-/// <summary>
 /// Repository interface for SyncEvent operations
 /// </summary>
 public interface ISyncEventRepository
@@ -70,7 +44,6 @@ public interface ISyncEventRepository
 public interface IUnitOfWork
 {
     IDeviceRepository Devices { get; }
-    IHistoryRepository History { get; }
     ISyncEventRepository SyncEvents { get; }
     
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
