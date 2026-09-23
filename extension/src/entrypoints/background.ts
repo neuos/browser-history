@@ -1,6 +1,7 @@
 import { initializeDeviceID } from "@/lib/HistoryTree/DeviceID";
 import { HistoryRepositoryIndexedDB } from "@/lib/HistoryTree/HistoryRepositoryIndexedDB";
 import { PageRepositoryIndexedDB } from "@/lib/HistoryTree/PageRepositoryIndexedDB";
+import { FaviconBlobRepositoryIndexedDB } from "@/lib/HistoryTree/FaviconBlobRepositoryIndexedDB";
 import { HistoryService } from "@/lib/HistoryTree/HistoryService";
 import { SPA_URL_CHANGE, PAGE_METADATA_EXTRACTED } from "@/message";
 import { Page, HistoryNode } from "@/lib/HistoryTree/HistoryNode";
@@ -113,11 +114,13 @@ export default defineBackground(() => {
 
     const pageRepository = new PageRepositoryIndexedDB();
     const historyRepository = new HistoryRepositoryIndexedDB();
+    const faviconBlobRepository = new FaviconBlobRepositoryIndexedDB();
 
     // Create the history service with sync callbacks
     const historyService = new HistoryService(
-      historyRepository, 
+      historyRepository,
       pageRepository,
+      faviconBlobRepository,
       {
         onHistoryNodeCreated: async (node) => {
           console.log('Background: onHistoryNodeCreated callback triggered for:', node.url)

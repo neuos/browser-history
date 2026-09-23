@@ -3,14 +3,16 @@ import { HistoryNode, HistoryNodeId, Page } from './HistoryNode';
 import { HistorySearchOptions } from './HistorySearchOptions';
 import { IHistoryRepository } from './IHistoryRepository';
 import { IPageRepository } from './IPageRepository';
+import { IFaviconBlobRepository } from './IFaviconBlobRepository';
 
 export class HistoryService {
     private historyRepo: IHistoryRepository;
     private pageRepo: IPageRepository;
+    private faviconBlobRepo: IFaviconBlobRepository;
 
     // Track the last node ID for each tab
     private tabNodeMap: Record<number, HistoryNodeId> = {};
-    
+
     // Sync callbacks
     private onHistoryNodeCreated?: (node: HistoryNode) => Promise<void>;
     private onPageCreated?: (page: Page) => Promise<void>;
@@ -19,6 +21,7 @@ export class HistoryService {
     constructor(
         historyRepo: IHistoryRepository,
         pageRepo: IPageRepository,
+        faviconBlobRepo: IFaviconBlobRepository,
         syncCallbacks?: {
             onHistoryNodeCreated?: (node: HistoryNode) => Promise<void>;
             onPageCreated?: (page: Page) => Promise<void>;
@@ -27,9 +30,46 @@ export class HistoryService {
     ) {
         this.historyRepo = historyRepo;
         this.pageRepo = pageRepo;
+        this.faviconBlobRepo = faviconBlobRepo;
         this.onHistoryNodeCreated = syncCallbacks?.onHistoryNodeCreated;
         this.onPageCreated = syncCallbacks?.onPageCreated;
         this.onPageUpdated = syncCallbacks?.onPageUpdated;
+    }
+
+    /**
+     * Fetches a favicon's actual bytes, computes its content hash, and stores it locally
+     * (deduplicated by hash - a favicon already known locally is never re-fetched). Returns the
+     * hash on success, or undefined if the fetch/hash fails - a broken favicon URL should never
+     * block recording the page visit itself.
+     */
+    private async fetchAndStoreFaviconBlob(url: string): Promise<string | undefined> {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                console.warn(`Favicon fetch failed for ${url}: ${response.status}`);
+                return undefined;
+            }
+
+            const contentType = response.headers.get('content-type') || 'application/octet-stream';
+            const data = await response.arrayBuffer();
+            if (data.byteLength === 0) {
+                return undefined;
+            }
+
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hash = Array.from(new Uint8Array(hashBuffer))
+                .map(b => b.toString(16).padStart(2, '0'))
+                .join('');
+
+            if (!(await this.faviconBlobRepo.has(hash))) {
+                await this.faviconBlobRepo.put({ hash, contentType, data, sizeBytes: data.byteLength });
+            }
+
+            return hash;
+        } catch (error) {
+            console.warn(`Error fetching/hashing favicon for ${url}:`, error);
+            return undefined;
+        }
     }
 
 
@@ -74,19 +114,23 @@ export class HistoryService {
 
     private async updatePageTitleOrFavicon(url: string, title?: string, favicon?: string): Promise<void> {
         try {
+            const faviconHash = favicon ? await this.fetchAndStoreFaviconBlob(favicon) : undefined;
+
             let page = await this.pageRepo.get(url);
             let isNewPage = false;
-            
+
             if (page) {
                 // Update existing page
                 if (title) page.title = title;
                 if (favicon) page.favicon = favicon;
+                if (faviconHash) page.faviconHash = faviconHash;
             } else {
                 // Create new page
                 page = new Page(url, favicon, title);
+                page.faviconHash = faviconHash;
                 isNewPage = true;
             }
-            
+
             await this.pageRepo.addOrUpdate(page);
             
             // Trigger sync callback if available
@@ -252,35 +296,60 @@ export class HistoryService {
         }
     }
 
+    /**
+     * Resolves a Page's favicon to a data: URL for display, reading the actual bytes from local
+     * storage rather than pointing at the original (possibly cross-device-unusable, possibly
+     * no-longer-live) source URL. A data URL, unlike a blob: URL, is a plain string that stays
+     * valid across the background<->popup runtime-message boundary regardless of which context
+     * created it or whether that context is still alive.
+     *
+     * Falls back to the page's raw favicon URL for pages captured before this existed (no
+     * faviconHash yet), so old history doesn't regress to no favicon at all.
+     */
+    private async resolveFaviconForDisplay(page: Page | undefined): Promise<string | null> {
+        if (page?.faviconHash) {
+            const blob = await this.faviconBlobRepo.get(page.faviconHash);
+            if (blob) {
+                const bytes = new Uint8Array(blob.data);
+                let binary = '';
+                for (let i = 0; i < bytes.byteLength; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return `data:${blob.contentType};base64,${btoa(binary)}`;
+            }
+        }
+        return page?.favicon || null;
+    }
+
     async getHistoryEntries(options: HistorySearchOptions = {}): Promise<HistoryEntry[]> {
         var history = await this.historyRepo.getAll();
         var pages = await this.pageRepo.getAll();
 
-        const entries: HistoryEntry[] = history.map(node => {
+        const entries: HistoryEntry[] = await Promise.all(history.map(async node => {
             const page = pages.find(p => p.url === node.url);
-            
+
             // Validate timestamp
             if (!node.timestamp) {
                 console.error('HistoryService: HistoryNode missing timestamp:', node);
                 throw new Error(`History node ${node.id} for ${node.url} has no timestamp`);
             }
-            
+
             if (!(node.timestamp instanceof Date) || isNaN(node.timestamp.getTime())) {
                 console.error('HistoryService: HistoryNode has invalid timestamp:', node.timestamp, node);
                 throw new Error(`History node ${node.id} for ${node.url} has invalid timestamp: ${node.timestamp}`);
             }
-            
+
             return {
                 id: node.id,
                 url: node.url,
                 title: page?.title || null,
-                favicon: page?.favicon || null,
+                favicon: await this.resolveFaviconForDisplay(page),
                 timestamp: node.timestamp,
                 parentId: node.navigationSourceID || null,
                 metadata: page?.metadata || {},
                 children: [] // Populate children if needed
             };
-        });
+        }));
         return entries.filter(entry => {
             // Filter by query
             if (options.query && !entry.url.includes(options.query) && !(entry.title && entry.title.includes(options.query))) {

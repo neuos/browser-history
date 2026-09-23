@@ -2,7 +2,7 @@ export class DatabaseSingleton {
     private static instance: DatabaseSingleton;
     private db: IDBDatabase | undefined;
     private readonly DB_NAME = 'browser-history-db';
-    private readonly DB_VERSION = 2; // Bumped from 1 to force schema recreation
+    private readonly DB_VERSION = 3; // Bumped from 2 to add the faviconBlobs store
     private schemaBuilders: Array<(db: IDBDatabase) => void> = [];
 
 

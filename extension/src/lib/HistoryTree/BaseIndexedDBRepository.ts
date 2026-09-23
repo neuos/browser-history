@@ -6,7 +6,9 @@ import { DatabaseSingleton } from './DatabaseSingleton';
  */
 export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyRange = IDBValidKey> {
   protected readonly DB_NAME = 'browser-history-db';
-  protected readonly DB_VERSION = 2; // Bumped from 1 to force schema recreation
+  // Unused - DatabaseSingleton owns the actual version passed to indexedDB.open(); kept in sync
+  // here only so a reader doesn't see a stale number if they check this file instead of that one.
+  protected readonly DB_VERSION = 3;
   protected abstract readonly STORE_NAME: string;
   protected db: IDBDatabase | undefined;
 

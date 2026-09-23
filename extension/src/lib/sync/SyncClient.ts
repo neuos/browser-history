@@ -1,6 +1,7 @@
 import type { SyncConfig, DeviceInfo, SyncEvent, SyncStatus } from './types'
 import { HistoryRepositoryIndexedDB } from '@/lib/HistoryTree/HistoryRepositoryIndexedDB'
 import { PageRepositoryIndexedDB } from '@/lib/HistoryTree/PageRepositoryIndexedDB'
+import { FaviconBlobRepositoryIndexedDB } from '@/lib/HistoryTree/FaviconBlobRepositoryIndexedDB'
 import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
 import { Page } from '@/lib/HistoryTree/HistoryNode'
 
@@ -27,6 +28,11 @@ export class SyncClient {
   // Repository instances for direct access
   private historyRepository = new HistoryRepositoryIndexedDB()
   private pageRepository = new PageRepositoryIndexedDB()
+  private faviconBlobRepository = new FaviconBlobRepositoryIndexedDB()
+  // Hashes confirmed uploaded this session, so a page revisited/updated repeatedly doesn't
+  // re-upload the same favicon bytes on every single sync event - the server is idempotent
+  // either way, this just avoids the redundant network round trip.
+  private uploadedFaviconHashes = new Set<string>()
 
   constructor(callbacks: SyncClientCallbacks = {}) {
     this.callbacks = callbacks
@@ -388,6 +394,79 @@ export class SyncClient {
     }, 30000) // Check every 30 seconds
   }
 
+  // Favicon blob sync - the actual image bytes, kept out of the SyncEvent JSON stream itself
+  // (which only ever carries a faviconHash reference) since the event log is meant for small
+  // JSON records, not arbitrary binary payloads.
+
+  /**
+   * Uploads a locally-stored favicon blob to the server if it hasn't been confirmed uploaded
+   * this session. The server is idempotent by hash regardless (this is purely a local
+   * optimization to skip the redundant round trip for a page revisited many times), and a
+   * failure here never blocks the page sync event itself - a missing favicon is a cosmetic
+   * gap, not a reason to lose a history entry.
+   */
+  async uploadFaviconBlobIfNeeded(hash: string): Promise<void> {
+    if (!this.config || !this.deviceInfo || this.uploadedFaviconHashes.has(hash)) return
+
+    try {
+      const blob = await this.faviconBlobRepository.get(hash)
+      if (!blob) {
+        console.warn('SyncClient: No local favicon blob found for hash', hash)
+        return
+      }
+
+      const bytes = new Uint8Array(blob.data)
+      let binary = ''
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i])
+      }
+      const dataBase64 = btoa(binary)
+
+      const response = await fetch(`${this.config.serverUrl}/api/v1/favicons`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.deviceInfo.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ hash, contentType: blob.contentType, dataBase64 }),
+      })
+
+      if (response.ok) {
+        this.uploadedFaviconHashes.add(hash)
+      } else {
+        console.warn('SyncClient: Favicon upload failed with status', response.status)
+      }
+    } catch (error) {
+      console.warn('SyncClient: Error uploading favicon blob:', error)
+    }
+  }
+
+  /**
+   * Fetches a favicon blob from the server and stores it locally, if not already present -
+   * what a device calls after receiving a sync event that references a hash it doesn't have
+   * the bytes for yet.
+   */
+  private async ensureFaviconBlobLocal(hash: string): Promise<void> {
+    if (!this.config || !this.deviceInfo) return
+    if (await this.faviconBlobRepository.has(hash)) return
+
+    const response = await fetch(`${this.config.serverUrl}/api/v1/favicons/${hash}`, {
+      headers: { 'Authorization': `Bearer ${this.deviceInfo.token}` },
+    })
+
+    if (!response.ok) {
+      if (response.status !== 404) {
+        console.warn('SyncClient: Favicon fetch failed with status', response.status)
+      }
+      return
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream'
+    const data = await response.arrayBuffer()
+    await this.faviconBlobRepository.put({ hash, contentType, data, sizeBytes: data.byteLength })
+    this.uploadedFaviconHashes.add(hash) // we now have it, and the server clearly does too
+  }
+
   // Event synchronization
   async submitSyncEvent(event: SyncEvent): Promise<void> {
     console.log('SyncClient: Submitting sync event:', event.eventType, event.entityType, event.entityId)
@@ -697,6 +776,7 @@ export class SyncClient {
         pageData.title,
         pageData.metadata || {}
       )
+      page.faviconHash = pageData.faviconHash
 
       if (pageData.lastUpdate) {
         page.lastUpdate = new Date(pageData.lastUpdate)
@@ -705,13 +785,23 @@ export class SyncClient {
       try {
         await this.pageRepository.addOrUpdate(page)
         console.log('SyncClient: Successfully added/updated page for:', pageData.url)
-        
+
         // Verify it was actually saved
         const savedPage = await this.pageRepository.get(pageData.url)
         if (savedPage) {
           console.log('SyncClient: SUCCESS - Page confirmed in database')
         } else {
           console.error('SyncClient: WARNING - Page was not saved to database!')
+        }
+
+        // Fetch the actual favicon bytes if we don't already have them locally - a page
+        // captured on another device references a hash, not the image itself, so this device
+        // needs its own copy before it can render anything. Best-effort: a failed fetch here
+        // shouldn't fail the whole event application, the page data itself already saved fine.
+        if (pageData.faviconHash) {
+          this.ensureFaviconBlobLocal(pageData.faviconHash).catch(error => {
+            console.warn('SyncClient: Failed to fetch favicon blob for', pageData.url, error)
+          })
         }
       } catch (addError) {
         console.error('SyncClient: Error adding/updating page:', addError)

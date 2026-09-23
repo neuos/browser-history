@@ -119,6 +119,10 @@ export class SyncService {
       return
     }
 
+    if (page.faviconHash) {
+      await this.syncClient.uploadFaviconBlobIfNeeded(page.faviconHash)
+    }
+
     console.log('SyncService: Creating sync event for page:', page.url)
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -130,6 +134,7 @@ export class SyncService {
         url: page.url,
         title: page.title,
         favicon: page.favicon,
+        faviconHash: page.faviconHash,
         metadata: page.metadata,
         lastUpdate: page.lastUpdate.getTime(),
         createdAt: Date.now(),
@@ -149,6 +154,10 @@ export class SyncService {
       return
     }
 
+    if (page.faviconHash) {
+      await this.syncClient.uploadFaviconBlobIfNeeded(page.faviconHash)
+    }
+
     console.log('SyncService: Creating sync event for page update:', page.url)
     const event: SyncEvent = {
       id: crypto.randomUUID(),
@@ -160,6 +169,7 @@ export class SyncService {
         url: page.url,
         title: page.title,
         favicon: page.favicon,
+        faviconHash: page.faviconHash,
         metadata: page.metadata,
         lastUpdate: page.lastUpdate.getTime(),
         updatedAt: Date.now(),
