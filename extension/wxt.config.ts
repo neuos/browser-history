@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.5',
+    version: '1.0.6',
     permissions: [
       'webNavigation',
       'tabs',
@@ -43,9 +43,12 @@ export default defineConfig({
         // capturing visited URLs/titles/metadata and transmitting them to a server the user
         // configures - self-hosted and user-controlled, but it is genuinely collected and sent
         // off-device, which is what this field is asking about, not who ends up receiving it.
-        data_collection_permissions: {
-          required: ['browsingActivity'],
-        },
+        //
+        // Cast needed: WXT's manifest type for browser_specific_settings.gecko doesn't include
+        // this field yet (Mozilla added the requirement more recently than that type), even
+        // though it passes straight through to the built manifest.json correctly - confirmed by
+        // inspecting the actual build output.
+        ...({ data_collection_permissions: { required: ['browsingActivity'] } } as object),
       },
     },
   },
