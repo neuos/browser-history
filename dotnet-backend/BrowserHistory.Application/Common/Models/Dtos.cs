@@ -13,23 +13,6 @@ public record DeviceDto
 }
 
 /// <summary>
-/// History node data transfer object
-/// </summary>
-public record HistoryNodeDto
-{
-    public required string Id { get; init; }
-    public required string Url { get; init; }
-    public required string Title { get; init; }
-    public required DateTime VisitedAt { get; init; }
-    public required int VisitCount { get; init; }
-    public required DateTime LastVisitedAt { get; init; }
-    public required DateTime CreatedAt { get; init; }
-    public required DateTime UpdatedAt { get; init; }
-    public required bool IsBookmarked { get; init; }
-    public string? FaviconUrl { get; init; }
-}
-
-/// <summary>
 /// Paginated result wrapper
 /// </summary>
 public record PaginatedResult<T>
@@ -91,28 +74,4 @@ public sealed record ApiResponse<T>
 
     public static ApiResponse<T> CreateError(IReadOnlyList<string> errors) =>
         new() { Success = false, Errors = errors };
-}
-
-/// <summary>
-/// Page statistics data transfer object
-/// </summary>
-public sealed record PageStatsDto
-{
-    public int TotalPages { get; init; }
-    public int ActivePages { get; init; }
-    public DateTime? LastUpdated { get; init; }
-    public int TotalVisits { get; init; }
-    public TimeSpan? AverageTimeOnPage { get; init; }
-    public IReadOnlyList<TopPageDto> TopPages { get; init; } = Array.Empty<TopPageDto>();
-}
-
-/// <summary>
-/// Top page statistics
-/// </summary>
-public sealed record TopPageDto
-{
-    public string Url { get; init; } = string.Empty;
-    public string Title { get; init; } = string.Empty;
-    public int VisitCount { get; init; }
-    public DateTime LastVisit { get; init; }
 }
