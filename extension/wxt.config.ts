@@ -38,6 +38,14 @@ export default defineConfig({
       gecko: {
         id: 'browser-history-sync@neuhuber.eu',
         strict_min_version: '109.0',
+        // Required by Mozilla for all new extensions (https://mzl.la/firefox-builtin-data-consent).
+        // "browsingActivity" is the honest declaration here: this extension's entire purpose is
+        // capturing visited URLs/titles/metadata and transmitting them to a server the user
+        // configures - self-hosted and user-controlled, but it is genuinely collected and sent
+        // off-device, which is what this field is asking about, not who ends up receiving it.
+        data_collection_permissions: {
+          required: ['browsingActivity'],
+        },
       },
     },
   },
