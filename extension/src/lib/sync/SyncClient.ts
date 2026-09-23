@@ -70,6 +70,15 @@ export class SyncClient {
       this.deviceInfo = result.deviceInfo || null
       this.lastDownloadTimestamp = result.lastDownloadTimestamp || 0
       this.isLoaded = true
+
+      // Migrate DeviceInfo saved before tokenIssuedAt existed: without this, ensureTokenFresh()'s
+      // age check becomes NaN (always false), so a token registered under the old code would
+      // never be refreshed. Treat as already due for refresh - ensureTokenFresh() will pick it
+      // up on the next sync attempt.
+      if (this.deviceInfo && this.deviceInfo.tokenIssuedAt === undefined) {
+        console.log('SyncClient: Migrating pre-tokenIssuedAt device info, forcing refresh on next sync')
+        this.deviceInfo.tokenIssuedAt = 0
+      }
       
       console.log('SyncClient: Loaded config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'lastDownload:', this.lastDownloadTimestamp)
       
@@ -129,6 +138,7 @@ export class SyncClient {
         token: data.token,
         expiresIn: data.expiresIn,
         registeredAt: Date.now(),
+        tokenIssuedAt: Date.now(),
       }
 
       await this.saveDeviceInfo(deviceInfo)
@@ -162,12 +172,13 @@ export class SyncClient {
       }
 
       const data = await response.json()
-      
+
       this.deviceInfo.token = data.token
       this.deviceInfo.expiresIn = data.expiresIn
-      
+      this.deviceInfo.tokenIssuedAt = Date.now()
+
       this.config.token = data.token
-      
+
       await this.saveDeviceInfo(this.deviceInfo)
       await this.saveConfig(this.config)
 
@@ -175,6 +186,22 @@ export class SyncClient {
     } catch (error) {
       console.error('Token refresh failed:', error)
       throw error
+    }
+  }
+
+  // Refresh the token if it's close to expiry. Must be called before every sync attempt, not
+  // just once at initial connect() - the access token is short-lived (60 min by default
+  // server-side) and nothing else re-checks it, so a device that only ever calls connect() once
+  // per session will silently 401 on every sync from then on once the token expires, with events
+  // piling up in the queue forever since 401 isn't treated as a terminal error either.
+  private async ensureTokenFresh(): Promise<void> {
+    if (!this.deviceInfo) return
+
+    const tokenAge = Date.now() - this.deviceInfo.tokenIssuedAt
+    const tokenLifetime = this.deviceInfo.expiresIn * 1000
+
+    if (tokenAge > tokenLifetime * 0.8) { // Refresh when 80% expired
+      await this.refreshToken()
     }
   }
 
@@ -186,12 +213,7 @@ export class SyncClient {
 
     try {
       // First, try to refresh token if it's close to expiry
-      const tokenAge = Date.now() - this.deviceInfo.registeredAt
-      const tokenLifetime = this.deviceInfo.expiresIn * 1000
-      
-      if (tokenAge > tokenLifetime * 0.8) { // Refresh when 80% expired
-        await this.refreshToken()
-      }
+      await this.ensureTokenFresh()
 
       // Try to connect SSE (but don't fail if it doesn't work)
       try {
@@ -366,6 +388,11 @@ export class SyncClient {
     console.log('SyncClient: Starting bidirectional sync...')
 
     try {
+      // Refresh the token first if needed - connect() only runs once per session, so this is
+      // the only thing that keeps a long-running device (no restart, no re-opening the popup)
+      // from silently 401ing on every sync once the access token expires.
+      await this.ensureTokenFresh()
+
       // Step 1: Upload pending events (if any)
       if (this.eventQueue.length > 0) {
         console.log('SyncClient: Uploading', this.eventQueue.length, 'pending events')
@@ -385,7 +412,7 @@ export class SyncClient {
     }
   }
 
-  private async uploadPendingEvents(): Promise<void> {
+  private async uploadPendingEvents(retryingAfterRefresh = false): Promise<void> {
     if (this.eventQueue.length === 0) {
       console.log('SyncClient: No pending events to upload')
       return
@@ -396,7 +423,7 @@ export class SyncClient {
 
     console.log('SyncClient: Sending events to', `${this.config!.serverUrl}/api/v1/sync/events`)
     console.log('SyncClient: Events being sent:', events.map(e => ({ id: e.id, type: e.eventType, entity: e.entityType })))
-    
+
     // Note: deviceId is NOT sent in the request body - it's provided via JWT in Authorization header
     // This ensures security and prevents device ID spoofing
     const response = await fetch(`${this.config!.serverUrl}/api/v1/sync/events`, {
@@ -412,7 +439,24 @@ export class SyncClient {
       console.error('SyncClient: Upload failed with status:', response.status, response.statusText)
       const errorText = await response.text()
       console.error('SyncClient: Error response:', errorText)
-      
+
+      // A 401 despite the proactive ensureTokenFresh() check (e.g. clock skew, or the token was
+      // revoked/rotated some other way) - try one reactive refresh-and-retry before falling back
+      // to the normal re-queue-and-throw path below, rather than silently failing forever with
+      // no path back to success (this was the actual root cause of events piling up indefinitely:
+      // nothing previously re-checked token expiry after the initial connect()).
+      if (response.status === 401 && !retryingAfterRefresh) {
+        console.warn('SyncClient: Upload got 401, attempting token refresh and one retry')
+        try {
+          await this.refreshToken()
+          this.eventQueue.unshift(...events)
+          return await this.uploadPendingEvents(true)
+        } catch (refreshError) {
+          console.error('SyncClient: Token refresh after 401 failed:', refreshError)
+          // fall through - treat like any other unrecoverable-this-round failure below
+        }
+      }
+
       // Only put events back in queue if it's a network/auth error, not a duplicate ID error
       if (response.status !== 400 && response.status !== 409 && response.status !== 500) {
         this.eventQueue.unshift(...events)
@@ -420,7 +464,7 @@ export class SyncClient {
       } else {
         console.warn(`SyncClient: Events not retried due to server error (${response.status}), may be duplicate IDs`)
       }
-      
+
       throw new Error(`Failed to upload events: ${response.status} ${errorText}`)
     }
 
@@ -434,16 +478,16 @@ export class SyncClient {
     console.log('SyncClient: Updated counters - successfulSyncs:', this.successfulSyncs, 'lastSyncTime:', new Date(this.lastSyncTime).toLocaleString())
   }
 
-  private async downloadEventsFromOtherDevices(): Promise<void> {
+  private async downloadEventsFromOtherDevices(retryingAfterRefresh = false): Promise<void> {
     if (!this.config || !this.deviceInfo) {
       throw new Error('No configuration available for download')
     }
 
     const since = this.lastDownloadTimestamp
     const url = `${this.config.serverUrl}/api/v1/sync/events?since=${since}&exclude_device=true`
-    
+
     console.log('SyncClient: Fetching events from', url)
-    
+
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -455,6 +499,17 @@ export class SyncClient {
     if (!response.ok) {
       const errorText = await response.text()
       console.error('SyncClient: Download failed:', response.status, errorText)
+
+      if (response.status === 401 && !retryingAfterRefresh) {
+        console.warn('SyncClient: Download got 401, attempting token refresh and one retry')
+        try {
+          await this.refreshToken()
+          return await this.downloadEventsFromOtherDevices(true)
+        } catch (refreshError) {
+          console.error('SyncClient: Token refresh after 401 failed:', refreshError)
+        }
+      }
+
       throw new Error(`Failed to download events: ${response.status} ${errorText}`)
     }
 
