@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.6',
+    version: '1.0.7',
     permissions: [
       'webNavigation',
       'tabs',
@@ -37,7 +37,11 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: {
         id: 'browser-history-sync@neuhuber.eu',
-        strict_min_version: '109.0',
+        // data_collection_permissions (below) needs Firefox 140+ desktop / 142+ Android - AMO
+        // flagged this as an actual inconsistency when it was still 109.0. Set to the higher of
+        // the two (142) so it satisfies both; this is a personal extension for a small, known
+        // set of devices, so requiring a reasonably current Firefox is a non-issue in practice.
+        strict_min_version: '142.0',
         // Required by Mozilla for all new extensions (https://mzl.la/firefox-builtin-data-consent).
         // "browsingActivity" is the honest declaration here: this extension's entire purpose is
         // capturing visited URLs/titles/metadata and transmitting them to a server the user
