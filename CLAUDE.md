@@ -19,7 +19,7 @@ Firefox for Android's extension support/distribution model has not been investig
 
 ### Implementation status — audited 2026-09-22, sync contract fixed same day
 
-`dotnet-backend` solution builds clean; 252/252 tests pass (`BrowserHistory.E2E.Tests` still isn't in the `.sln` and still fails to compile standalone — 13 errors from the pre-DTO-reorg namespaces, not yet touched). `extension/` builds clean, `bun run check` has 0 type errors.
+`dotnet-backend` solution builds clean; 302/302 tests pass, including `BrowserHistory.E2E.Tests` (in the `.sln`, rewritten 2026-09-23 — see below). `extension/` builds clean, `bun run check` has 0 type errors.
 
 **The extension ↔ `dotnet-backend` sync path is now live-verified end-to-end** (register two devices → submit a sync event with a URL entityId and nested data from one → confirm the other receives it over its open SSE connection with correct shape → confirm `GET /sync/events?exclude_device=true` excludes the sender). What was fixed, in order:
 - The API couldn't start a JSON request at all: `JsonSerializerIsReflectionEnabledByDefault=false` was set (AOT prep) with no working source-gen resolver wired in (`ApiJsonContext` existed but was never registered and was missing/mismatched DTOs). Reflection re-enabled; `ApiJsonContext` left as dead code until AOT is actually turned back on.
@@ -30,7 +30,13 @@ Firefox for Android's extension support/distribution model has not been investig
 
 Not a gap: local search is real and wired — `HistoryList.svelte`'s search box calls `HistoryService.getHistoryEntries({query, ...})`, which does substring + date-range filtering over the local IndexedDB store. `PLAN.md`'s unchecked items (`EventBus`, `SyncOrchestrator`, `BackgroundSyncService`, most domain events) are confirmed still genuinely absent from `dotnet-backend`.
 
-Still open: `BrowserHistory.E2E.Tests` compile errors; the root Playwright suite (`tests/e2e/`) hasn't been run against `dotnet-backend` yet, only the manual smoke flow above and the extension's own build/typecheck.
+### E2E test rewrite (2026-09-23)
+
+`BrowserHistory.E2E.Tests` was excluded from the `.sln` because its 4 `Workflows/*.cs` files (~1,340 lines) targeted a defunct API (`/api/sync/upload`, `/api/sync/download`, `UploadHistoryCommand`, a `DeviceResponse.IsOnline` field) with no trace left anywhere else in the codebase — not a namespace-import fix, a full rewrite against the real API. Now done and in the `.sln`; see git log on `dotnet-backend/BrowserHistory.E2E.Tests/` for the specifics. Two real, previously-undiscovered production bugs came out of writing these for real: `SyncEvent.Create()` ignored the client's event id entirely (making resubmission/conflict-detection non-functional — fixed, the client id is now the actual EF primary key), and `ExceptionHandlingMiddleware` crashed (500 instead of 400) whenever a single field failed more than one FluentValidation rule at once.
+
+`E2ETestWebApplicationFactory`'s in-memory SQLite setup needed a real fix too: a bare `:memory:` connection string gives every new connection its own empty database, and routing everything through one shared, already-open connection "fixes" that but isn't safe under concurrent requests (SQLite doesn't support concurrent command execution on one connection object). It now uses SQLite's shared-cache mode (`mode=memory&cache=shared`, uniquely named per factory instance) instead — every request gets its own ordinary connection, all seeing the same database.
+
+Still open: the root Playwright suite (`tests/e2e/`) hasn't been run against `dotnet-backend` yet, only the dotnet E2E suite above and the manual smoke flow from the prior fix.
 
 ## Repository layout
 
@@ -70,7 +76,7 @@ Clean Architecture / CQRS, strict inward dependency direction: `Domain` → `App
 
 Two SQLite databases exist side by side: the main `BrowserHistoryDbContext` (history/sync/page data) and `DeviceIdentityContext` (auth). Both are migrated independently — see `AddInfrastructure`'s `InitializeDatabaseAsync`.
 
-Test projects mirror the layer they test (`*.Domain.Tests`, `*.Application.Tests`, `*.Infrastructure.Tests`) plus `BrowserHistory.E2E.Tests`, which spins up the full API via `WebApplicationFactory` against an isolated in-memory/SQLite database per test and includes FsCheck property-based tests for domain invariants.
+Test projects mirror the layer they test (`*.Domain.Tests`, `*.Application.Tests`, `*.Infrastructure.Tests`) plus `BrowserHistory.E2E.Tests`, which spins up the full API via `WebApplicationFactory` against a shared-cache in-memory SQLite database (one per test class, not per test method — call `ClearTestDataAsync()` first if a test asserts on exact row counts) and includes FsCheck property-based tests for domain invariants.
 
 Native AOT is configured in `BrowserHistory.Api.csproj` (`PublishAot`) but currently disabled while testing infra is built out — don't re-enable it without checking that flag first.
 

@@ -43,9 +43,12 @@ public class ExceptionHandlingMiddleware
             {
                 StatusCode = (int)HttpStatusCode.BadRequest,
                 Message = "Validation failed",
-                Details = (object?)validationEx.Errors.ToDictionary(
-                    x => x.PropertyName, 
-                    x => x.ErrorMessage)
+                // A property can fail more than one rule (e.g. both NotEmpty and a Must check on
+                // an empty string) - ToDictionary would throw on the duplicate key, so group and
+                // keep every message per property instead of just the first.
+                Details = (object?)validationEx.Errors
+                    .GroupBy(x => x.PropertyName)
+                    .ToDictionary(g => g.Key, g => g.Select(x => x.ErrorMessage).ToArray())
             },
             NotFoundException notFoundEx => new
             {

@@ -1,125 +1,119 @@
 using FsCheck;
 using BrowserHistory.Domain.Entities;
+using BrowserHistory.Domain.Enums;
 using BrowserHistory.Domain.ValueObjects;
 
 namespace BrowserHistory.E2E.Tests.PropertyBased;
 
 /// <summary>
 /// Property-based tests for Device entity invariants.
-/// These tests generate thousands of random inputs to verify business rules.
+/// These tests generate many random inputs to verify business rules.
+///
+/// Device no longer accepts externally-supplied RegisteredAt/LastSeen timestamps (both are always
+/// DateTime.UtcNow, set internally) - properties here only vary what's actually controllable:
+/// the device name and id.
 /// </summary>
 public class DevicePropertyTests
 {
     /// <summary>
-    /// Property: A device's LastSeen should never be before its RegisteredAt time.
+    /// Property: LastSeen is never before RegisteredAt, no matter how many times it's updated.
     /// </summary>
     [Property]
-    public Property LastSeenShouldNotBeBeforeRegisteredAt()
+    public Property LastSeenShouldNeverBeBeforeRegisteredAt()
     {
-        return Prop.ForAll<DateTime, DateTime>((registeredAt, lastSeen) =>
+        return Prop.ForAll<PositiveInt>(updateCount =>
         {
-            // Arrange: Ensure registeredAt is before lastSeen
-            var validRegisteredAt = registeredAt;
-            var validLastSeen = lastSeen > registeredAt ? lastSeen : registeredAt.AddMinutes(1);
-            
-            // Act: Create device with valid timestamps
-            var device = Device.Create(
-                DeviceId.Create(Guid.NewGuid()),
-                "Test Device",
-                validRegisteredAt);
-            
-            device.UpdateLastSeen(validLastSeen);
-            
-            // Assert: LastSeen should always be >= RegisteredAt
+            var device = Device.Create("Test Device");
+
+            for (var i = 0; i < updateCount.Get % 20; i++)
+            {
+                device.UpdateLastSeen();
+            }
+
             return device.LastSeen >= device.RegisteredAt;
         });
     }
 
     /// <summary>
-    /// Property: Device names should be trimmed and non-empty after creation.
+    /// Property: Device names are trimmed and non-empty after creation.
     /// </summary>
     [Property]
     public Property DeviceNameShouldBeTrimmedAndNonEmpty()
     {
         return Prop.ForAll<NonEmptyString>(nonEmptyName =>
         {
-            // Arrange: Add whitespace to the name
-            var nameWithWhitespace = $"  {nonEmptyName.Get}  ";
-            
-            // Act: Create device
-            var device = Device.Create(
-                DeviceId.Create(Guid.NewGuid()),
-                nameWithWhitespace,
-                DateTime.UtcNow);
-            
-            // Assert: Name should be trimmed and non-empty
+            // Whitespace-only names would fail validation, so pad a genuinely non-blank name.
+            // The 4 padding characters count against Device's 100-char limit too.
+            var trimmedInput = nonEmptyName.Get.Trim();
+            var nameWithWhitespace = $"  {trimmedInput}  ";
+            if (trimmedInput.Length == 0 || nameWithWhitespace.Length > 100) return true; // out of scope for this property
+
+            var device = Device.Create(nameWithWhitespace);
+
             return !string.IsNullOrWhiteSpace(device.DeviceName) &&
-                   device.DeviceName == nameWithWhitespace.Trim();
+                   device.DeviceName == trimmedInput;
         });
     }
 
     /// <summary>
-    /// Property: Device should remain active after creation and last seen updates.
+    /// Property: A freshly created device is always active, and stays active through updates
+    /// that aren't Deactivate().
     /// </summary>
     [Property]
-    public Property DeviceShouldRemainActiveAfterUpdates()
+    public Property DeviceShouldRemainActiveAfterNonDeactivatingUpdates()
     {
-        return Prop.ForAll<DateTime>(timestamp =>
+        return Prop.ForAll<NonEmptyString, PositiveInt>((name, updateCount) =>
         {
-            // Arrange & Act: Create device and update last seen
-            var device = Device.Create(
-                DeviceId.Create(Guid.NewGuid()),
-                "Test Device",
-                DateTime.UtcNow);
-            
-            if (timestamp > device.RegisteredAt)
+            var trimmedInput = name.Get.Trim();
+            if (trimmedInput.Length == 0 || trimmedInput.Length > 100) return true;
+
+            var device = Device.Create(trimmedInput);
+            for (var i = 0; i < updateCount.Get % 20; i++)
             {
-                device.UpdateLastSeen(timestamp);
+                device.UpdateLastSeen();
             }
-            
-            // Assert: Device should remain active
+
             return device.IsActive;
         });
     }
 
     /// <summary>
-    /// Property: DeviceId should be immutable and always return the same value.
+    /// Property: DeviceId is immutable and always returns the same underlying value.
     /// </summary>
     [Property]
     public Property DeviceIdShouldBeImmutable()
     {
         return Prop.ForAll<Guid>(guidValue =>
         {
-            // Arrange & Act: Create device with specific ID
-            var deviceId = DeviceId.Create(guidValue);
-            var device = Device.Create(
-                deviceId,
-                "Test Device",
-                DateTime.UtcNow);
-            
-            // Assert: DeviceId should remain constant
-            return device.Id.Value == guidValue && 
-                   device.Id.Value == deviceId.Value;
+            if (guidValue == Guid.Empty) return true; // DeviceId disallows Guid.Empty by design
+
+            var deviceId = DeviceId.From(guidValue);
+            var device = Device.Create(deviceId, "Test Device");
+
+            return device.Id.Value == guidValue && device.Id.Value == deviceId.Value;
         });
     }
 
     /// <summary>
-    /// Property: Multiple devices with same ID should be equal.
+    /// Property: two Device instances constructed with the same DeviceId represent the same
+    /// logical device, even though Device itself uses reference equality (it's an entity, not a
+    /// value object) - identity is carried by DeviceId, which does have value equality.
     /// </summary>
     [Property]
-    public Property DevicesWithSameIdShouldBeEqual()
+    public Property DevicesWithSameIdShouldShareIdentity()
     {
-        return Prop.ForAll<Guid, NonEmptyString, NonEmptyString, DateTime, DateTime>(
-            (id, name1, name2, time1, time2) =>
+        return Prop.ForAll<Guid, NonEmptyString, NonEmptyString>((id, name1, name2) =>
         {
-            // Arrange: Create two devices with same ID but different properties
-            var deviceId = DeviceId.Create(id);
-            var device1 = Device.Create(deviceId, name1.Get, time1);
-            var device2 = Device.Create(deviceId, name2.Get, time2);
-            
-            // Assert: Devices should be equal based on ID
-            return device1.Equals(device2) && 
-                   device1.GetHashCode() == device2.GetHashCode();
+            if (id == Guid.Empty) return true;
+            var n1 = name1.Get.Trim();
+            var n2 = name2.Get.Trim();
+            if (n1.Length is 0 or > 100 || n2.Length is 0 or > 100) return true;
+
+            var deviceId = DeviceId.From(id);
+            var device1 = Device.Create(deviceId, n1);
+            var device2 = Device.Create(deviceId, n2);
+
+            return device1.Id.Equals(device2.Id) && device1.Id.GetHashCode() == device2.Id.GetHashCode();
         });
     }
 }
@@ -129,87 +123,75 @@ public class DevicePropertyTests
 /// </summary>
 public class SyncEventPropertyTests
 {
+    private static Checksum ValidChecksum() => Checksum.FromContent(Guid.NewGuid().ToString());
+
     /// <summary>
-    /// Property: SyncEvent timestamp should be preserved accurately.
+    /// Property: SyncEvent timestamp is preserved exactly.
     /// </summary>
     [Property]
     public Property SyncEventTimestampShouldBePreserved()
     {
-        return Prop.ForAll<DateTime, Guid>(
-            (timestamp, deviceId) =>
+        return Prop.ForAll<DateTime, Guid>((timestamp, deviceGuid) =>
         {
-            // Arrange & Act: Create sync event
+            if (deviceGuid == Guid.Empty) return true;
+
             var syncEvent = SyncEvent.Create(
                 Guid.NewGuid(),
-                DeviceId.Create(deviceId),
+                "test-entity-id",
+                DeviceId.From(deviceGuid),
                 timestamp,
                 SyncEventType.Create,
                 SyncEntityType.History,
-                "test-entity-id",
                 "{}",
-                "checksum-123");
-            
-            // Assert: Timestamp should be preserved exactly
+                ValidChecksum());
+
             return syncEvent.Timestamp == timestamp;
         });
     }
 
     /// <summary>
-    /// Property: SyncEvent data should never be null or empty.
+    /// Property: SyncEvent data is never null or empty (Create rejects blank data).
     /// </summary>
     [Property]
     public Property SyncEventDataShouldNeverBeNullOrEmpty()
     {
         return Prop.ForAll<NonEmptyString>(data =>
         {
-            // Act: Create sync event with provided data
+            if (string.IsNullOrWhiteSpace(data.Get)) return true; // Create rejects this by design
+
             var syncEvent = SyncEvent.Create(
                 Guid.NewGuid(),
-                DeviceId.Create(Guid.NewGuid()),
+                "test-entity-id",
+                DeviceId.New(),
                 DateTime.UtcNow,
                 SyncEventType.Update,
                 SyncEntityType.History,
-                "test-entity-id",
                 data.Get,
-                "checksum");
-            
-            // Assert: Data should not be null or empty
+                ValidChecksum());
+
             return !string.IsNullOrEmpty(syncEvent.Data);
         });
     }
 
     /// <summary>
-    /// Property: SyncEvent checksum should be consistent for same data.
+    /// Property: two events created with the same entityId/entityType are otherwise independent -
+    /// each gets its own server-generated Id and can carry its own checksum.
     /// </summary>
     [Property]
-    public Property SyncEventChecksumShouldBeConsistent()
+    public Property SyncEventsShouldGetIndependentServerGeneratedIds()
     {
-        return Prop.ForAll<NonEmptyString, NonEmptyString>(
-            (data, checksum) =>
+        return Prop.ForAll<NonEmptyString>(data =>
         {
-            // Arrange: Create two events with same data and checksum
+            if (string.IsNullOrWhiteSpace(data.Get)) return true;
+
             var event1 = SyncEvent.Create(
-                Guid.NewGuid(),
-                DeviceId.Create(Guid.NewGuid()),
-                DateTime.UtcNow,
-                SyncEventType.Create,
-                SyncEntityType.History,
-                "entity-1",
-                data.Get,
-                checksum.Get);
-                
+                Guid.NewGuid(), "shared-entity-id", DeviceId.New(), DateTime.UtcNow,
+                SyncEventType.Create, SyncEntityType.History, data.Get, ValidChecksum());
             var event2 = SyncEvent.Create(
-                Guid.NewGuid(),
-                DeviceId.Create(Guid.NewGuid()),
-                DateTime.UtcNow,
-                SyncEventType.Create,
-                SyncEntityType.History,
-                "entity-2",
-                data.Get,
-                checksum.Get);
-            
-            // Assert: Same data should have same checksum
-            return event1.Checksum == event2.Checksum;
+                Guid.NewGuid(), "shared-entity-id", DeviceId.New(), DateTime.UtcNow,
+                SyncEventType.Create, SyncEntityType.History, data.Get, ValidChecksum());
+
+            return event1.Id != event2.Id && event1.EntityId == event2.EntityId;
         });
     }
 }
@@ -219,103 +201,106 @@ public class SyncEventPropertyTests
 /// </summary>
 public class HistoryNodePropertyTests
 {
+    private static string SafeTitle(string raw)
+    {
+        var trimmed = raw.Trim();
+        if (trimmed.Length == 0) trimmed = "Untitled";
+        return trimmed.Length > 500 ? trimmed[..500] : trimmed;
+    }
+
     /// <summary>
-    /// Property: HistoryNode timestamps should follow logical order.
+    /// Property: UpdatedAt is always >= CreatedAt, immediately after creation and after any
+    /// number of mutations.
     /// </summary>
     [Property]
-    public Property HistoryNodeTimestampsShouldFollowLogicalOrder()
+    public Property UpdatedAtShouldNeverPrecedeCreatedAt()
     {
-        return Prop.ForAll<DateTime, DateTime, DateTime>(
-            (timestamp, createdAt, updatedAt) =>
+        return Prop.ForAll<NonEmptyString, PositiveInt>((title, bookmarkToggles) =>
         {
-            // Arrange: Ensure logical timestamp ordering
-            var validCreatedAt = createdAt;
-            var validUpdatedAt = updatedAt > createdAt ? updatedAt : createdAt;
-            var validTimestamp = timestamp;
-            
-            // Act: Create history node
-            var historyNode = HistoryNode.Create(
-                Guid.NewGuid(),
-                DeviceId.Create(Guid.NewGuid()),
-                Url.Create("https://example.com"),
-                1,
-                validTimestamp,
-                null,
-                validCreatedAt,
-                validUpdatedAt);
-            
-            // Assert: UpdatedAt should be >= CreatedAt
+            var safeTitle = SafeTitle(title.Get);
+            var historyNode = HistoryNode.Create(Url.From("https://example.com"), safeTitle, DateTime.UtcNow);
+
+            for (var i = 0; i < bookmarkToggles.Get % 10; i++)
+            {
+                if (i % 2 == 0) historyNode.Bookmark(); else historyNode.RemoveBookmark();
+            }
+
             return historyNode.UpdatedAt >= historyNode.CreatedAt;
         });
     }
 
     /// <summary>
-    /// Property: HistoryNode URL should be valid and preserved.
+    /// Property: the URL a HistoryNode is created with is preserved (same host, always
+    /// re-parseable as a Url). Not full string round-trip equality: .NET's Uri normalization
+    /// isn't idempotent for every percent-encoded input (e.g. "%20" vs a literal space can come
+    /// out differently on a second pass), which isn't what this property is meant to check.
     /// </summary>
     [Property]
-    public Property HistoryNodeUrlShouldBeValidAndPreserved()
+    public Property HistoryNodeUrlShouldBePreservedAndStable()
     {
-        return Prop.ForAll<NonEmptyString>(urlString =>
+        return Prop.ForAll<NonEmptyString>(urlSegment =>
         {
             try
             {
-                // Arrange: Create a valid URL
-                var validUrl = $"https://example.com/{urlString.Get.Replace(" ", "-")}";
-                var url = Url.Create(validUrl);
-                
-                // Act: Create history node
-                var historyNode = HistoryNode.Create(
-                    Guid.NewGuid(),
-                    DeviceId.Create(Guid.NewGuid()),
-                    url,
-                    1,
-                    DateTime.UtcNow,
-                    null,
-                    DateTime.UtcNow,
-                    DateTime.UtcNow);
-                
-                // Assert: URL should be preserved
-                return historyNode.Url.Value == validUrl;
+                var validUrl = $"https://example.com/{Uri.EscapeDataString(urlSegment.Get)}";
+                var url = Url.From(validUrl);
+                var historyNode = HistoryNode.Create(url, "Title", DateTime.UtcNow);
+
+                var reparsed = Url.From(historyNode.Url.Value); // must not throw
+                return historyNode.Url.ToUri().Host == "example.com" && reparsed.ToUri().Host == "example.com";
             }
-            catch
+            catch (ArgumentException)
             {
-                // Skip invalid URLs
-                return true;
+                return true; // invalid generated URL - not what this property is testing
             }
         });
     }
 
     /// <summary>
-    /// Property: HistoryNode soft delete should preserve original timestamps.
+    /// Property: RecordVisit always increments VisitCount by exactly one and never moves
+    /// LastVisitedAt backwards.
     /// </summary>
     [Property]
-    public Property HistoryNodeSoftDeleteShouldPreserveTimestamps()
+    public Property RecordVisitShouldIncrementCountAndNeverRegressLastVisitedAt()
     {
-        return Prop.ForAll<DateTime, DateTime>(
-            (createdAt, updatedAt) =>
+        return Prop.ForAll<PositiveInt>(extraVisits =>
         {
-            // Arrange: Create history node
-            var validUpdatedAt = updatedAt > createdAt ? updatedAt : createdAt;
-            var historyNode = HistoryNode.Create(
-                Guid.NewGuid(),
-                DeviceId.Create(Guid.NewGuid()),
-                Url.Create("https://example.com"),
-                1,
-                DateTime.UtcNow,
-                null,
-                createdAt,
-                validUpdatedAt);
-            
-            var originalCreatedAt = historyNode.CreatedAt;
-            var originalUpdatedAt = historyNode.UpdatedAt;
-            
-            // Act: Soft delete
-            historyNode.SoftDelete();
-            
-            // Assert: Original timestamps should be preserved
-            return historyNode.CreatedAt == originalCreatedAt &&
-                   historyNode.UpdatedAt == originalUpdatedAt &&
-                   historyNode.DeletedAt.HasValue;
+            var historyNode = HistoryNode.Create(Url.From("https://example.com"), "Title", DateTime.UtcNow.AddDays(-1));
+            var visits = extraVisits.Get % 10;
+            var visitCountBefore = historyNode.VisitCount;
+            var lastVisitedBefore = historyNode.LastVisitedAt;
+
+            for (var i = 0; i < visits; i++)
+            {
+                historyNode.RecordVisit(DateTime.UtcNow);
+            }
+
+            return historyNode.VisitCount == visitCountBefore + visits &&
+                   historyNode.LastVisitedAt >= lastVisitedBefore;
+        });
+    }
+
+    /// <summary>
+    /// Property: MergeVisits always sums VisitCount from both nodes and never loses the
+    /// bookmarked status if either side was bookmarked.
+    /// </summary>
+    [Property]
+    public Property MergeVisitsShouldSumCountsAndPreserveBookmark()
+    {
+        return Prop.ForAll<bool, bool>((firstBookmarked, secondBookmarked) =>
+        {
+            var url = Url.From("https://example.com/shared");
+            var first = HistoryNode.Create(url, "First", DateTime.UtcNow.AddHours(-2));
+            var second = HistoryNode.Create(url, "Second", DateTime.UtcNow.AddHours(-1));
+
+            if (firstBookmarked) first.Bookmark();
+            if (secondBookmarked) second.Bookmark();
+
+            var expectedCount = first.VisitCount + second.VisitCount;
+            first.MergeVisits(second);
+
+            return first.VisitCount == expectedCount &&
+                   first.IsBookmarked == (firstBookmarked || secondBookmarked);
         });
     }
 }

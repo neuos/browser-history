@@ -1,22 +1,25 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Text;
-using Microsoft.Extensions.DependencyInjection;
+using System.Text.Json;
 using FluentAssertions;
 using BrowserHistory.E2E.Tests.Infrastructure;
-using BrowserHistory.Api.DTOs;
-using BrowserHistory.Application.Commands.Devices;
-using BrowserHistory.Application.Commands.Sync;
+using BrowserHistory.Application.Features.Auth.Models;
 
 namespace BrowserHistory.E2E.Tests.Workflows;
 
 /// <summary>
-/// End-to-end tests for real-time synchronization using Server-Sent Events (SSE).
-/// Tests bidirectional real-time sync scenarios between multiple devices.
+/// End-to-end tests for the real-time (SSE) side of sync: /api/v1/sse/events. Connects a real
+/// HttpClient to the streaming endpoint (HttpCompletionOption.ResponseHeadersRead, so the body
+/// can be read incrementally against TestServer's in-process transport) and asserts what actually
+/// arrives on the wire when another device submits a sync event.
 /// </summary>
 [Collection("E2E Tests")]
 public class RealTimeSyncWorkflowTests : IClassFixture<E2ETestWebApplicationFactory>
 {
+    private const string SharedSecret = "your-shared-secret-for-device-registration";
+    private static readonly TimeSpan SseWaitTimeout = TimeSpan.FromSeconds(10);
+
     private readonly E2ETestWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
@@ -27,315 +30,231 @@ public class RealTimeSyncWorkflowTests : IClassFixture<E2ETestWebApplicationFact
     }
 
     [Fact]
-    public async Task Real_Time_Sync_Should_Notify_Connected_Devices()
+    public async Task SSE_Connection_Sends_Connected_Event_On_Open()
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        
-        var device1Response = await RegisterDevice("Device 1");
-        var device2Response = await RegisterDevice("Device 2");
+        var device = await RegisterDeviceAsync("SSE Device");
 
-        var device1Id = device1Response.DeviceId;
-        var device2Id = device2Response.DeviceId;
+        // Act
+        await using var sse = await ConnectSseAsync(device.Token);
+        var firstMessage = await sse.ReadNextMessageAsync(SseWaitTimeout);
 
-        var syncNotificationReceived = new TaskCompletionSource<bool>();
-        var receivedEvents = new List<string>();
+        // Assert
+        firstMessage.GetProperty("type").GetString().Should().Be("connected");
+        firstMessage.GetProperty("data").GetProperty("deviceId").GetString().Should().Be(device.DeviceId);
+    }
 
-        // Act - Device 2 connects to SSE stream
-        using var sseClient = _factory.CreateClient();
-        var sseRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={device2Id}");
-        sseRequest.Headers.Add("Accept", "text/event-stream");
-        sseRequest.Headers.Add("Cache-Control", "no-cache");
+    [Fact]
+    public async Task SSE_Should_Notify_Connected_Device_Of_Sync_Event_From_Another_Device()
+    {
+        // Arrange
+        await _factory.ClearTestDataAsync();
+        var listener = await RegisterDeviceAsync("Listener Device");
+        var sender = await RegisterDeviceAsync("Sender Device");
 
-        var sseResponse = await sseClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
-        sseResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        sseResponse.Content.Headers.ContentType?.MediaType.Should().Be("text/event-stream");
+        await using var sse = await ConnectSseAsync(listener.Token);
+        await sse.ReadNextMessageAsync(SseWaitTimeout); // "connected"
 
-        // Start reading SSE stream in background
-        var streamReadingTask = Task.Run(async () =>
+        var entityId = Guid.NewGuid().ToString();
+
+        // Act
+        await SubmitHistoryEventAsync(sender.Token, entityId, "https://realtime.example.com");
+        var message = await sse.ReadNextMessageAsync(SseWaitTimeout);
+
+        // Assert
+        message.GetProperty("type").GetString().Should().Be("sync_batch");
+        var events = message.GetProperty("data").GetProperty("events");
+        events.GetArrayLength().Should().Be(1);
+        var evt = events[0];
+        evt.GetProperty("deviceId").GetString().Should().Be(sender.DeviceId);
+        evt.GetProperty("entityType").GetString().Should().Be("history");
+        evt.GetProperty("entityId").GetString().Should().Be(entityId);
+        evt.GetProperty("data").GetProperty("url").GetString().Should().Be("https://realtime.example.com");
+    }
+
+    [Fact]
+    public async Task SSE_Should_Not_Notify_Sender_Of_Its_Own_Sync_Event()
+    {
+        // Arrange
+        await _factory.ClearTestDataAsync();
+        var device = await RegisterDeviceAsync("Self Device");
+
+        await using var sse = await ConnectSseAsync(device.Token);
+        await sse.ReadNextMessageAsync(SseWaitTimeout); // "connected"
+
+        // Act - device submits its own event while listening on its own SSE connection
+        await SubmitHistoryEventAsync(device.Token, Guid.NewGuid().ToString(), "https://self.example.com");
+
+        // A ping is expected eventually, but no sync_batch should ever arrive for this device's
+        // own event. Give it a short, bounded window to prove absence rather than waiting forever.
+        var sawSyncBatch = await sse.WaitForMessageMatchingAsync(
+            m => m.GetProperty("type").GetString() == "sync_batch",
+            TimeSpan.FromSeconds(2));
+
+        // Assert
+        sawSyncBatch.Should().BeFalse("a device should never receive its own sync events back over SSE");
+    }
+
+    [Fact]
+    public async Task Multiple_Listening_Devices_Should_Each_Receive_Independent_Notifications()
+    {
+        // Arrange
+        await _factory.ClearTestDataAsync();
+        var listenerA = await RegisterDeviceAsync("Listener A");
+        var listenerB = await RegisterDeviceAsync("Listener B");
+        var sender = await RegisterDeviceAsync("Broadcaster");
+
+        await using var sseA = await ConnectSseAsync(listenerA.Token);
+        await using var sseB = await ConnectSseAsync(listenerB.Token);
+        await sseA.ReadNextMessageAsync(SseWaitTimeout);
+        await sseB.ReadNextMessageAsync(SseWaitTimeout);
+
+        var entityId = Guid.NewGuid().ToString();
+
+        // Act
+        await SubmitHistoryEventAsync(sender.Token, entityId, "https://broadcast.example.com");
+
+        var messageA = await sseA.ReadNextMessageAsync(SseWaitTimeout);
+        var messageB = await sseB.ReadNextMessageAsync(SseWaitTimeout);
+
+        // Assert - both independent listeners got it, each on their own connection
+        foreach (var message in new[] { messageA, messageB })
         {
-            using var stream = await sseResponse.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            
-            string? line;
-            var eventBuilder = new StringBuilder();
-            
-            while ((line = await reader.ReadLineAsync()) != null)
+            message.GetProperty("type").GetString().Should().Be("sync_batch");
+            message.GetProperty("data").GetProperty("events")[0].GetProperty("entityId").GetString()
+                .Should().Be(entityId);
+        }
+    }
+
+    [Fact]
+    public async Task SSE_Without_Token_Should_Return_Unauthorized()
+    {
+        // Act
+        var response = await _client.GetAsync("/api/v1/sse/events");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task SSE_With_Invalid_Token_Should_Return_Unauthorized()
+    {
+        // Act
+        var response = await _client.GetAsync("/api/v1/sse/events?token=not-a-real-jwt");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    private async Task SubmitHistoryEventAsync(string token, string entityId, string url)
+    {
+        var payload = new
+        {
+            events = new[]
             {
-                if (string.IsNullOrEmpty(line))
+                new
                 {
-                    // Empty line indicates end of event
-                    if (eventBuilder.Length > 0)
-                    {
-                        var eventData = eventBuilder.ToString();
-                        receivedEvents.Add(eventData);
-                        
-                        if (eventData.Contains("github.com"))
-                        {
-                            syncNotificationReceived.SetResult(true);
-                            break;
-                        }
-                        
-                        eventBuilder.Clear();
-                    }
-                }
-                else
-                {
-                    eventBuilder.AppendLine(line);
+                    id = Guid.NewGuid(),
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    eventType = "CREATE",
+                    entityType = "history",
+                    entityId,
+                    data = new { url }
                 }
             }
-        });
-
-        // Wait a moment for SSE connection to establish
-        await Task.Delay(100);
-
-        // Device 1 uploads new history (should trigger real-time notification to Device 2)
-        var historyEntry = new UploadHistoryEntryDto
-        {
-            Id = Guid.NewGuid(),
-            Url = "https://github.com",
-            Title = "GitHub",
-            VisitCount = 1,
-            LastVisitTime = DateTime.UtcNow,
-            LastVisitTimeUtc = DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow
         };
 
-        var uploadRequest = new UploadHistoryCommand(device1Id, new[] { historyEntry });
-        var uploadResponse = await _client.PostAsJsonAsync("/api/sync/upload", uploadRequest);
-        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Assert - Device 2 should receive real-time notification
-        var notificationReceived = await Task.WhenAny(
-            syncNotificationReceived.Task,
-            Task.Delay(TimeSpan.FromSeconds(10))
-        );
-
-        notificationReceived.Should().Be(syncNotificationReceived.Task);
-        syncNotificationReceived.Task.Result.Should().BeTrue();
-
-        receivedEvents.Should().NotBeEmpty();
-        var lastEvent = receivedEvents.Last();
-        lastEvent.Should().Contain("github.com");
-        lastEvent.Should().Contain("Create");
-        lastEvent.Should().Contain("History");
-    }
-
-    [Fact]
-    public async Task SSE_Connection_Should_Handle_Device_Reconnection()
-    {
-        // Arrange
-        await _factory.ClearTestDataAsync();
-        var deviceResponse = await RegisterDevice("Test Device");
-        var deviceId = deviceResponse.DeviceId;
-
-        // Act - Initial SSE connection
-        using var firstClient = _factory.CreateClient();
-        var firstRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={deviceId}");
-        firstRequest.Headers.Add("Accept", "text/event-stream");
-
-        var firstResponse = await firstClient.SendAsync(firstRequest, HttpCompletionOption.ResponseHeadersRead);
-        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Simulate disconnection by disposing client
-        firstClient.Dispose();
-
-        // Reconnect with new client
-        using var secondClient = _factory.CreateClient();
-        var secondRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={deviceId}");
-        secondRequest.Headers.Add("Accept", "text/event-stream");
-
-        var secondResponse = await secondClient.SendAsync(secondRequest, HttpCompletionOption.ResponseHeadersRead);
-
-        // Assert - Reconnection should succeed
-        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        secondResponse.Content.Headers.ContentType?.MediaType.Should().Be("text/event-stream");
-    }
-
-    [Fact]
-    public async Task SSE_Should_Only_Notify_Changes_From_Other_Devices()
-    {
-        // Arrange
-        await _factory.ClearTestDataAsync();
-        var deviceResponse = await RegisterDevice("Test Device");
-        var deviceId = deviceResponse.DeviceId;
-
-        var eventReceived = new TaskCompletionSource<bool>();
-        var receivedEvents = new List<string>();
-
-        // Device connects to its own SSE stream
-        using var sseClient = _factory.CreateClient();
-        var sseRequest = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={deviceId}");
-        sseRequest.Headers.Add("Accept", "text/event-stream");
-
-        var sseResponse = await sseClient.SendAsync(sseRequest, HttpCompletionOption.ResponseHeadersRead);
-
-        // Start reading SSE stream
-        var streamReadingTask = Task.Run(async () =>
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/sync/events")
         {
-            using var stream = await sseResponse.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            
-            // Set a timeout for reading
-            var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            
+            Content = JsonContent.Create(payload)
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private async Task<SseConnection> ConnectSseAsync(string token)
+    {
+        var client = _factory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/v1/sse/events?token={token}");
+        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+        response.EnsureSuccessStatusCode();
+        var stream = await response.Content.ReadAsStreamAsync();
+        return new SseConnection(client, response, new StreamReader(stream));
+    }
+
+    private async Task<(string DeviceId, string Token)> RegisterDeviceAsync(string namePrefix)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/register-device",
+            new { deviceName = $"{namePrefix}-{Guid.NewGuid()}", secret = SharedSecret });
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+        return (result!.DeviceId, result.Token);
+    }
+
+    /// <summary>
+    /// Thin reader over a live "text/event-stream" response body: each SSE frame is a line
+    /// prefixed "data: " followed by a JSON payload and a blank line.
+    /// </summary>
+    private sealed class SseConnection : IAsyncDisposable
+    {
+        private readonly HttpClient _client;
+        private readonly HttpResponseMessage _response;
+        private readonly StreamReader _reader;
+
+        public SseConnection(HttpClient client, HttpResponseMessage response, StreamReader reader)
+        {
+            _client = client;
+            _response = response;
+            _reader = reader;
+        }
+
+        public async Task<JsonElement> ReadNextMessageAsync(TimeSpan timeout)
+        {
+            using var cts = new CancellationTokenSource(timeout);
+            while (!cts.IsCancellationRequested)
+            {
+                var line = await _reader.ReadLineAsync(cts.Token);
+                if (line is null)
+                    throw new InvalidOperationException("SSE stream ended before a message arrived");
+
+                if (line.StartsWith("data: ", StringComparison.Ordinal))
+                {
+                    return JsonSerializer.Deserialize<JsonElement>(line["data: ".Length..]);
+                }
+            }
+
+            throw new TimeoutException($"No SSE message received within {timeout}");
+        }
+
+        public async Task<bool> WaitForMessageMatchingAsync(Func<JsonElement, bool> predicate, TimeSpan timeout)
+        {
+            using var cts = new CancellationTokenSource(timeout);
             try
             {
-                string? line;
-                while ((line = await reader.ReadLineAsync()) != null && !timeoutCts.Token.IsCancellationRequested)
+                while (true)
                 {
-                    if (!string.IsNullOrEmpty(line))
-                    {
-                        receivedEvents.Add(line);
-                        eventReceived.SetResult(true);
-                    }
+                    var line = await _reader.ReadLineAsync(cts.Token);
+                    if (line is null) return false;
+                    if (!line.StartsWith("data: ", StringComparison.Ordinal)) continue;
+
+                    var message = JsonSerializer.Deserialize<JsonElement>(line["data: ".Length..]);
+                    if (predicate(message)) return true;
                 }
             }
             catch (OperationCanceledException)
             {
-                // Expected timeout
-            }
-        });
-
-        // Wait for stream to be established
-        await Task.Delay(100);
-
-        // Act - Device uploads its own history (should NOT receive notification)
-        var historyEntry = new UploadHistoryEntryDto
-        {
-            Id = Guid.NewGuid(),
-            Url = "https://self-upload.com",
-            Title = "Self Upload",
-            VisitCount = 1,
-            LastVisitTime = DateTime.UtcNow,
-            LastVisitTimeUtc = DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow
-        };
-
-        var uploadRequest = new UploadHistoryCommand(deviceId, new[] { historyEntry });
-        await _client.PostAsJsonAsync("/api/sync/upload", uploadRequest);
-
-        // Wait to see if any events are received (there shouldn't be any)
-        var completedTask = await Task.WhenAny(
-            eventReceived.Task,
-            Task.Delay(TimeSpan.FromSeconds(2))
-        );
-
-        // Assert - Device should NOT receive notifications for its own changes
-        completedTask.Should().NotBe(eventReceived.Task);
-        receivedEvents.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task Multiple_Devices_SSE_Should_Receive_Independent_Notifications()
-    {
-        // Arrange
-        await _factory.ClearTestDataAsync();
-        
-        var device1Response = await RegisterDevice("Device 1");
-        var device2Response = await RegisterDevice("Device 2");
-        var device3Response = await RegisterDevice("Device 3");
-
-        var device1Id = device1Response.DeviceId;
-        var device2Id = device2Response.DeviceId;
-        var device3Id = device3Response.DeviceId;
-
-        var device2Notification = new TaskCompletionSource<bool>();
-        var device3Notification = new TaskCompletionSource<bool>();
-
-        // Device 2 connects to SSE
-        using var device2Client = _factory.CreateClient();
-        var device2Request = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={device2Id}");
-        device2Request.Headers.Add("Accept", "text/event-stream");
-        var device2Response = await device2Client.SendAsync(device2Request, HttpCompletionOption.ResponseHeadersRead);
-
-        // Device 3 connects to SSE
-        using var device3Client = _factory.CreateClient();
-        var device3Request = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={device3Id}");
-        device3Request.Headers.Add("Accept", "text/event-stream");
-        var device3ResponseMessage = await device3Client.SendAsync(device3Request, HttpCompletionOption.ResponseHeadersRead);
-
-        // Start monitoring both streams
-        var device2Task = MonitorSSEStream(device2Response, device2Notification, "github.com");
-        var device3Task = MonitorSSEStream(device3ResponseMessage, device3Notification, "github.com");
-
-        // Wait for connections to establish
-        await Task.Delay(100);
-
-        // Act - Device 1 uploads history
-        var historyEntry = new UploadHistoryEntryDto
-        {
-            Id = Guid.NewGuid(),
-            Url = "https://github.com",
-            Title = "GitHub",
-            VisitCount = 1,
-            LastVisitTime = DateTime.UtcNow,
-            LastVisitTimeUtc = DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow
-        };
-
-        var uploadRequest = new UploadHistoryCommand(device1Id, new[] { historyEntry });
-        await _client.PostAsJsonAsync("/api/sync/upload", uploadRequest);
-
-        // Assert - Both devices should receive notifications
-        var device2Notified = await Task.WhenAny(device2Notification.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        var device3Notified = await Task.WhenAny(device3Notification.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-
-        device2Notified.Should().Be(device2Notification.Task);
-        device3Notified.Should().Be(device3Notification.Task);
-        
-        device2Notification.Task.Result.Should().BeTrue();
-        device3Notification.Task.Result.Should().BeTrue();
-    }
-
-    [Fact]
-    public async Task SSE_Should_Handle_Invalid_Device_Id()
-    {
-        // Arrange
-        var invalidDeviceId = Guid.NewGuid();
-
-        // Act
-        using var client = _factory.CreateClient();
-        var request = new HttpRequestMessage(HttpMethod.Get, $"/api/sync/events/stream?deviceId={invalidDeviceId}");
-        request.Headers.Add("Accept", "text/event-stream");
-
-        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-        // Assert - Should handle invalid device gracefully
-        // The exact behavior depends on implementation - could be 404, 400, or empty stream
-        response.StatusCode.Should().BeOneOf(HttpStatusCode.NotFound, HttpStatusCode.BadRequest, HttpStatusCode.OK);
-    }
-
-    private async Task MonitorSSEStream(HttpResponseMessage response, TaskCompletionSource<bool> completionSource, string searchTerm)
-    {
-        try
-        {
-            using var stream = await response.Content.ReadAsStreamAsync();
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            
-            var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            
-            string? line;
-            while ((line = await reader.ReadLineAsync()) != null && !timeoutCts.Token.IsCancellationRequested)
-            {
-                if (!string.IsNullOrEmpty(line) && line.Contains(searchTerm))
-                {
-                    completionSource.SetResult(true);
-                    return;
-                }
+                return false;
             }
         }
-        catch (Exception ex)
-        {
-            completionSource.SetException(ex);
-        }
-    }
 
-    private async Task<RegisterDeviceResponse> RegisterDevice(string deviceName)
-    {
-        var request = new RegisterDeviceCommand(deviceName);
-        var response = await _client.PostAsJsonAsync("/api/devices/register", request);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<RegisterDeviceResponse>())!;
+        public ValueTask DisposeAsync()
+        {
+            _reader.Dispose();
+            _response.Dispose();
+            _client.Dispose();
+            return ValueTask.CompletedTask;
+        }
     }
 }

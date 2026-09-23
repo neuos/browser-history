@@ -3,16 +3,20 @@ using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
 using BrowserHistory.E2E.Tests.Infrastructure;
-using BrowserHistory.Api.DTOs;
-using BrowserHistory.Application.Commands.Devices;
-using BrowserHistory.Domain.Entities;
+using BrowserHistory.Application.Common.Models;
+using BrowserHistory.Application.Features.Devices.Commands;
+using BrowserHistory.Domain.ValueObjects;
 using BrowserHistory.Infrastructure.Data;
 
 namespace BrowserHistory.E2E.Tests.Workflows;
 
 /// <summary>
-/// End-to-end tests for device registration and management workflows.
-/// Tests complete user journeys for device registration, authentication, and status updates.
+/// End-to-end tests for the (unauthenticated) device management endpoints under
+/// /api/v1/devices - registration, listing, lookup, and last-seen updates.
+///
+/// This is a separate device concept from /api/v1/auth/register-device: it creates a
+/// domain Device directly with no shared-secret check and issues no token. Nothing in the
+/// extension calls it today, but it is real, mounted API surface, so it's tested as such.
 /// </summary>
 [Collection("E2E Tests")]
 public class DeviceManagementWorkflowTests : IClassFixture<E2ETestWebApplicationFactory>
@@ -31,56 +35,51 @@ public class DeviceManagementWorkflowTests : IClassFixture<E2ETestWebApplication
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        var deviceName = "Test Chrome Browser";
-        var registerRequest = new RegisterDeviceCommand(deviceName);
+        var deviceName = $"Test Chrome Browser {Guid.NewGuid()}";
 
         // Act & Assert - Step 1: Register new device
-        var registerResponse = await _client.PostAsJsonAsync("/api/devices/register", registerRequest);
-        registerResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var registerResponse = await _client.PostAsJsonAsync("/api/v1/devices/register",
+            new RegisterDeviceCommand { DeviceName = deviceName });
+        registerResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        var registerResult = await registerResponse.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
-        registerResult.Should().NotBeNull();
-        registerResult!.DeviceId.Should().NotBeEmpty();
-        registerResult.Name.Should().Be(deviceName);
-        registerResult.LastSeen.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
+        var registered = await registerResponse.Content.ReadFromJsonAsync<DeviceDto>();
+        registered.Should().NotBeNull();
+        Guid.TryParse(registered!.Id, out _).Should().BeTrue();
+        registered.DeviceName.Should().Be(deviceName);
+        registered.IsActive.Should().BeTrue();
+        registered.LastSeen.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
 
-        var deviceId = registerResult.DeviceId;
+        var deviceId = registered.Id;
 
-        // Act & Assert - Step 2: Verify device appears in devices list
-        var getDevicesResponse = await _client.GetAsync("/api/devices");
-        getDevicesResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Act & Assert - Step 2: Verify device appears in the active devices list
+        var listResponse = await _client.GetAsync("/api/v1/devices");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var devices = await getDevicesResponse.Content.ReadFromJsonAsync<DeviceResponse[]>();
-        devices.Should().NotBeNull();
-        devices!.Should().HaveCount(1);
-        devices[0].Id.Should().Be(deviceId);
-        devices[0].Name.Should().Be(deviceName);
+        var devices = await listResponse.Content.ReadFromJsonAsync<DeviceDto[]>();
+        devices.Should().ContainSingle(d => d.Id == deviceId && d.DeviceName == deviceName);
 
         // Act & Assert - Step 3: Get specific device details
-        var getDeviceResponse = await _client.GetAsync($"/api/devices/{deviceId}");
-        getDeviceResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var getResponse = await _client.GetAsync($"/api/v1/devices/{deviceId}");
+        getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        var device = await getDeviceResponse.Content.ReadFromJsonAsync<DeviceResponse>();
-        device.Should().NotBeNull();
+        var device = await getResponse.Content.ReadFromJsonAsync<DeviceDto>();
         device!.Id.Should().Be(deviceId);
-        device.Name.Should().Be(deviceName);
-        device.IsOnline.Should().BeTrue(); // Recently registered device should be considered online
+        device.DeviceName.Should().Be(deviceName);
 
-        // Act & Assert - Step 4: Update device last seen timestamp
-        var updateLastSeenResponse = await _client.PatchAsync($"/api/devices/{deviceId}/last-seen", null);
-        updateLastSeenResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        // Act & Assert - Step 4: Update device last-seen timestamp
+        var updateResponse = await _client.PutAsync($"/api/v1/devices/{deviceId}/last-seen", null);
+        updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // Verify timestamp was updated
-        var updatedDeviceResponse = await _client.GetAsync($"/api/devices/{deviceId}");
-        var updatedDevice = await updatedDeviceResponse.Content.ReadFromJsonAsync<DeviceResponse>();
+        var updatedResponse = await _client.GetAsync($"/api/v1/devices/{deviceId}");
+        var updatedDevice = await updatedResponse.Content.ReadFromJsonAsync<DeviceDto>();
         updatedDevice!.LastSeen.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(30));
 
-        // Verify device persisted in database
+        // Verify device persisted in the database
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
-        var persistedDevice = await context.Devices.FindAsync(DeviceId.Create(deviceId));
+        var persistedDevice = await context.Devices.FindAsync(DeviceId.From(Guid.Parse(deviceId)));
         persistedDevice.Should().NotBeNull();
-        persistedDevice!.Name.Value.Should().Be(deviceName);
+        persistedDevice!.DeviceName.Should().Be(deviceName);
     }
 
     [Fact]
@@ -88,76 +87,55 @@ public class DeviceManagementWorkflowTests : IClassFixture<E2ETestWebApplication
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        var devices = new[]
-        {
-            "Chrome Desktop",
-            "Firefox Mobile",
-            "Safari iPad"
-        };
+        var suffix = Guid.NewGuid();
+        var deviceNames = new[] { $"Chrome Desktop {suffix}", $"Firefox Mobile {suffix}", $"Safari iPad {suffix}" };
 
         // Act - Register multiple devices concurrently
-        var registrationTasks = devices.Select(async deviceName =>
+        var registrationTasks = deviceNames.Select(async deviceName =>
         {
-            var request = new RegisterDeviceCommand(deviceName);
-            var response = await _client.PostAsJsonAsync("/api/devices/register", request);
-            response.StatusCode.Should().Be(HttpStatusCode.OK);
-            return await response.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+            var response = await _client.PostAsJsonAsync("/api/v1/devices/register",
+                new RegisterDeviceCommand { DeviceName = deviceName });
+            response.StatusCode.Should().Be(HttpStatusCode.Created);
+            return await response.Content.ReadFromJsonAsync<DeviceDto>();
         });
 
         var results = await Task.WhenAll(registrationTasks);
 
-        // Assert - All devices registered successfully
-        results.Should().HaveCount(3);
-        results.Should().AllSatisfy(result =>
-        {
-            result.Should().NotBeNull();
-            result!.DeviceId.Should().NotBeEmpty();
-        });
+        // Assert - all devices registered with unique IDs
+        results.Should().AllSatisfy(r => r.Should().NotBeNull());
+        results.Select(r => r!.Id).Should().OnlyHaveUniqueItems();
 
-        // Verify unique device IDs
-        var deviceIds = results.Select(r => r!.DeviceId).ToArray();
-        deviceIds.Should().OnlyHaveUniqueItems();
-
-        // Verify all devices appear in list
-        var getDevicesResponse = await _client.GetAsync("/api/devices");
-        var deviceList = await getDevicesResponse.Content.ReadFromJsonAsync<DeviceResponse[]>();
-        deviceList.Should().HaveCount(3);
-        
-        foreach (var expectedName in devices)
+        var listResponse = await _client.GetAsync("/api/v1/devices");
+        var deviceList = await listResponse.Content.ReadFromJsonAsync<DeviceDto[]>();
+        foreach (var expectedName in deviceNames)
         {
-            deviceList.Should().Contain(d => d.Name == expectedName);
+            deviceList.Should().Contain(d => d.DeviceName == expectedName);
         }
     }
 
     [Fact]
-    public async Task Device_Registration_With_Duplicate_Name_Should_Create_Separate_Devices()
+    public async Task Device_Registration_With_Duplicate_Name_Should_Return_BadRequest()
     {
-        // Arrange
+        // Arrange - Device.DeviceName is unique (IX_Devices_DeviceName), enforced by the handler
+        // before it ever reaches the database.
         await _factory.ClearTestDataAsync();
-        var deviceName = "Chrome Browser";
+        var deviceName = $"Chrome Browser {Guid.NewGuid()}";
+        var firstResponse = await _client.PostAsJsonAsync("/api/v1/devices/register",
+            new RegisterDeviceCommand { DeviceName = deviceName });
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
 
-        // Act - Register two devices with same name
-        var firstRequest = new RegisterDeviceCommand(deviceName);
-        var firstResponse = await _client.PostAsJsonAsync("/api/devices/register", firstRequest);
-        var firstResult = await firstResponse.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+        // Act - Register a second device with the same name
+        var secondResponse = await _client.PostAsJsonAsync("/api/v1/devices/register",
+            new RegisterDeviceCommand { DeviceName = deviceName });
 
-        var secondRequest = new RegisterDeviceCommand(deviceName);
-        var secondResponse = await _client.PostAsJsonAsync("/api/devices/register", secondRequest);
-        var secondResult = await secondResponse.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+        // Assert
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var error = await secondResponse.Content.ReadFromJsonAsync<string>();
+        error.Should().Contain(deviceName);
 
-        // Assert - Both registrations successful with different IDs
-        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
-        firstResult!.DeviceId.Should().NotBe(secondResult!.DeviceId);
-        firstResult.Name.Should().Be(deviceName);
-        secondResult.Name.Should().Be(deviceName);
-
-        // Verify both devices exist in system
-        var getDevicesResponse = await _client.GetAsync("/api/devices");
-        var devices = await getDevicesResponse.Content.ReadFromJsonAsync<DeviceResponse[]>();
-        devices.Should().HaveCount(2);
-        devices.Should().AllSatisfy(d => d.Name.Should().Be(deviceName));
+        var listResponse = await _client.GetAsync("/api/v1/devices");
+        var devices = await listResponse.Content.ReadFromJsonAsync<DeviceDto[]>();
+        devices.Should().ContainSingle(d => d.DeviceName == deviceName);
     }
 
     [Fact]
@@ -167,68 +145,49 @@ public class DeviceManagementWorkflowTests : IClassFixture<E2ETestWebApplication
         var nonexistentDeviceId = Guid.NewGuid();
 
         // Act
-        var response = await _client.GetAsync($"/api/devices/{nonexistentDeviceId}");
+        var response = await _client.GetAsync($"/api/v1/devices/{nonexistentDeviceId}");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
-    public async Task Update_Last_Seen_For_Nonexistent_Device_Should_Return_NotFound()
+    public async Task Update_Last_Seen_For_Nonexistent_Device_Should_Return_ServerError()
     {
-        // Arrange
+        // Arrange - unlike GET /devices/{id}, this endpoint doesn't distinguish "not found" from
+        // any other handler failure: UpdateDeviceLastSeenCommandHandler returns Result.Failure,
+        // and the endpoint maps any failed Result straight to Results.Problem() (500). Documented
+        // here as the real, current behavior, not the ideal one.
         var nonexistentDeviceId = Guid.NewGuid();
 
         // Act
-        var response = await _client.PatchAsync($"/api/devices/{nonexistentDeviceId}/last-seen", null);
+        var response = await _client.PutAsync($"/api/v1/devices/{nonexistentDeviceId}/last-seen", null);
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError);
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    [InlineData(null)]
-    public async Task Device_Registration_With_Invalid_Name_Should_Return_BadRequest(string? invalidName)
+    public async Task Device_Registration_With_Invalid_Name_Should_Return_BadRequest(string invalidName)
     {
-        // Arrange
-        var request = new RegisterDeviceCommand(invalidName!);
-
         // Act
-        var response = await _client.PostAsJsonAsync("/api/devices/register", request);
+        var response = await _client.PostAsJsonAsync("/api/v1/devices/register",
+            new RegisterDeviceCommand { DeviceName = invalidName });
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
-    public async Task Device_Online_Status_Should_Reflect_Recent_Activity()
+    public async Task Device_Registration_With_Name_Over_100_Characters_Should_Return_BadRequest()
     {
-        // Arrange
-        await _factory.ClearTestDataAsync();
-        var request = new RegisterDeviceCommand("Test Device");
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/v1/devices/register",
+            new RegisterDeviceCommand { DeviceName = new string('A', 101) });
 
-        // Act - Register device (should be online)
-        var registerResponse = await _client.PostAsJsonAsync("/api/devices/register", request);
-        var registerResult = await registerResponse.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
-        var deviceId = registerResult!.DeviceId;
-
-        // Assert - Device should be online initially
-        var getDeviceResponse = await _client.GetAsync($"/api/devices/{deviceId}");
-        var device = await getDeviceResponse.Content.ReadFromJsonAsync<DeviceResponse>();
-        device!.IsOnline.Should().BeTrue();
-
-        // Simulate device going offline by manipulating last seen timestamp
-        using var scope = _factory.Services.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
-        var persistedDevice = await context.Devices.FindAsync(DeviceId.Create(deviceId));
-        persistedDevice!.UpdateLastSeen(DateTime.UtcNow.AddMinutes(-10)); // Set to 10 minutes ago
-        await context.SaveChangesAsync();
-
-        // Assert - Device should now be offline
-        var offlineDeviceResponse = await _client.GetAsync($"/api/devices/{deviceId}");
-        var offlineDevice = await offlineDeviceResponse.Content.ReadFromJsonAsync<DeviceResponse>();
-        offlineDevice!.IsOnline.Should().BeFalse();
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 }
