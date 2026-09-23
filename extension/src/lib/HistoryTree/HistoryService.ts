@@ -44,8 +44,15 @@ export class HistoryService {
         // Get the latest favicon and title
         const favicon = changeInfo.favIconUrl;
 
-        if (favicon) {
+        // Some browsers' WebExtensions implementations (confirmed live: Orion on Mac) report
+        // favIconUrl as literally the tab's own page URL rather than an actual icon resource -
+        // there is no legitimate case where a real favicon URL exactly equals the page URL it's
+        // for, so treat that as "no favicon available" instead of storing and syncing garbage
+        // that looks like a URL but 404s or renders nothing when displayed as an <img src>.
+        if (favicon && favicon !== tab.url) {
             this.updateFavicon(tab.url, favicon);
+        } else if (favicon) {
+            console.warn(`Ignoring bogus favIconUrl equal to the page URL itself: ${favicon}`);
         }
 
         const title = changeInfo.title
