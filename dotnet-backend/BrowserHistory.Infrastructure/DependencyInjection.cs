@@ -69,19 +69,27 @@ public static class DependencyInjection
     public static async Task InitializeDatabaseAsync(this IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
-        
-        // Initialize main database
+
+        // MigrateAsync alone handles both "database doesn't exist yet" (creates it, including the
+        // __EFMigrationsHistory table, then applies every migration in order) and "database exists
+        // with pending migrations". EnsureCreatedAsync followed by a conditional MigrateAsync -
+        // this method's previous implementation - doesn't: EnsureCreatedAsync builds the schema
+        // straight from the current model with no migration bookkeeping, so a fresh database it
+        // creates has all its tables already but zero rows in __EFMigrationsHistory, making every
+        // migration look "pending" and MigrateAsync fail trying to re-run CREATE TABLE. This method
+        // was also never actually called from Program.cs, so this bug had never run in practice.
+        //
+        // MigrateAsync is relational-only and throws against EF's InMemory provider (which
+        // BrowserHistory.Infrastructure.Tests' AuthWebApplicationFactory swaps in, and which needs
+        // no schema setup at all) - only migrate when the provider actually is relational.
         var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
-        await context.Database.EnsureCreatedAsync();
-        if ((await context.Database.GetPendingMigrationsAsync()).Any())
+        if (context.Database.IsRelational())
         {
             await context.Database.MigrateAsync();
         }
 
-        // Initialize identity database
         var identityContext = scope.ServiceProvider.GetRequiredService<DeviceIdentityContext>();
-        await identityContext.Database.EnsureCreatedAsync();
-        if ((await identityContext.Database.GetPendingMigrationsAsync()).Any())
+        if (identityContext.Database.IsRelational())
         {
             await identityContext.Database.MigrateAsync();
         }

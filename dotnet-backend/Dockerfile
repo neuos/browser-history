@@ -4,39 +4,41 @@ FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 # Set the working directory
 WORKDIR /app
 
-# Copy the solution file and project files
-COPY BrowserHistory.sln ./
+# Copy only the 4 projects the API actually depends on - not BrowserHistory.sln, which also
+# references 4 test projects this image has no reason to build.
 COPY BrowserHistory.Domain/BrowserHistory.Domain.csproj ./BrowserHistory.Domain/
 COPY BrowserHistory.Application/BrowserHistory.Application.csproj ./BrowserHistory.Application/
 COPY BrowserHistory.Infrastructure/BrowserHistory.Infrastructure.csproj ./BrowserHistory.Infrastructure/
 COPY BrowserHistory.Api/BrowserHistory.Api.csproj ./BrowserHistory.Api/
 
 # Restore dependencies
-RUN dotnet restore
+RUN dotnet restore BrowserHistory.Api/BrowserHistory.Api.csproj
 
 # Copy the entire source code
 COPY . .
 
 # Build the application in Release mode
-RUN dotnet build -c Release --no-restore
+RUN dotnet build BrowserHistory.Api/BrowserHistory.Api.csproj -c Release --no-restore
 
-# Publish the application with Native AOT
+# Publish the application (framework-dependent, JIT - NOT Native AOT). The API's JSON
+# serialization relies on reflection (BrowserHistory.Api.csproj no longer disables it) because
+# ApiJsonContext, the source-gen context meant to replace reflection under AOT, is missing several
+# DTOs used by real endpoints and references at least one from the wrong namespace - publishing
+# with PublishAot=true here reproduces the exact "every JSON endpoint throws on first request" bug
+# fixed in this repo's history. Revisit together if ApiJsonContext is ever finished.
 FROM build AS publish
 RUN dotnet publish BrowserHistory.Api/BrowserHistory.Api.csproj \
     -c Release \
     --no-restore \
-    --self-contained true \
-    -o /app/publish \
-    /p:PublishAot=true
+    -o /app/publish
 
 # Use a minimal runtime image for the final stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS runtime
 
-# Install necessary runtime dependencies for Native AOT
+# curl for the HEALTHCHECK below; icu-libs for globalization/culture-aware string operations
 RUN apk add --no-cache \
-    icu-libs \
-    libgcc \
-    libstdc++
+    curl \
+    icu-libs
 
 # Create a non-root user
 RUN addgroup -g 1001 appuser && \
@@ -67,5 +69,8 @@ ENV DOTNET_RUNNING_IN_CONTAINER=true
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Start the application
-ENTRYPOINT ["./BrowserHistory.Api"]
+# Start the application via `dotnet <dll>`, not the generated apphost (./BrowserHistory.Api):
+# the apphost is glibc-linked, but this runtime image is Alpine (musl) - executing it directly
+# fails with a misleading "no such file or directory" (the ELF interpreter it was linked against
+# doesn't exist on this libc, which the kernel reports as ENOENT rather than a linker error).
+ENTRYPOINT ["dotnet", "BrowserHistory.Api.dll"]
