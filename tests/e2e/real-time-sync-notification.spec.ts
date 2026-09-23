@@ -18,7 +18,7 @@ test.describe('Real-time Sync Notification', () => {
     // Create browser context
     context = await chromium.launchPersistentContext(`./test-data/sync-test-${Date.now()}`, {
       channel: 'chromium',
-      headless: false,
+      headless: process.env.PLAYWRIGHT_HEADED !== 'true',
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,

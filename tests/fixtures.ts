@@ -18,7 +18,10 @@ export const test = base.extend<{
       const pathToExtension = path.join(__dirname, '..', 'extension', '.output', 'chrome-mv3');
       sharedContext = await chromium.launchPersistentContext('', {
         channel: 'chromium',
-        headless: false, // Show browser window
+        // Headless by default (Chromium's "new" headless mode supports --load-extension) so
+        // this doesn't pop a visible, focus-stealing browser window on whoever's machine is
+        // running it. Set PLAYWRIGHT_HEADED=true (bun run test:e2e:headed does this) to watch it.
+        headless: process.env.PLAYWRIGHT_HEADED !== 'true',
         args: [
           `--disable-extensions-except=${pathToExtension}`,
           `--load-extension=${pathToExtension}`,

@@ -18,7 +18,7 @@
     "test:e2e:core": "bun run build:extension && playwright test tests/e2e/extension-core.spec.ts --reporter=line",
     "test:e2e:sync": "bun run build:extension && playwright test tests/e2e/cross-device-sync.spec.ts --reporter=line",
     "test:e2e:verification": "bun run build:extension && playwright test tests/verification/ --reporter=line",
-    "test:e2e:headed": "bun run build:extension && playwright test tests/e2e/ --workers=1 --headed --reporter=line",
+    "test:e2e:headed": "bun run build:extension && PLAYWRIGHT_HEADED=true playwright test tests/e2e/ --workers=1 --headed --reporter=line",
     "test:e2e:ui": "bun run build:extension && playwright test tests/e2e/ --workers=1 --ui",
     "test:e2e:debug": "bun run build:extension && playwright test tests/e2e/ --workers=1 --debug",
     "test:e2e:report": "playwright show-report",

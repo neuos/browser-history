@@ -32,7 +32,9 @@ export default defineConfig({
         // Force only Chromium browser
         browserName: 'chromium',
         channel: 'chromium',
-        headless: false,
+        // Headless by default so this doesn't pop a visible, focus-stealing window; set
+        // PLAYWRIGHT_HEADED=true (bun run test:e2e:headed does this) to watch it run.
+        headless: process.env.PLAYWRIGHT_HEADED !== 'true',
       },
     },
   ],

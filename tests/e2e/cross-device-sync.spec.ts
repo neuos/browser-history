@@ -24,7 +24,7 @@ test.describe.serial('Cross-Device Sync Notification', () => {
     const userDataDir1 = `./test-data/device1-${timestamp}`;
     context1 = await chromium.launchPersistentContext(userDataDir1, {
       channel: 'chromium',
-      headless: false,
+      headless: process.env.PLAYWRIGHT_HEADED !== 'true',
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
@@ -43,7 +43,7 @@ test.describe.serial('Cross-Device Sync Notification', () => {
     const userDataDir2 = `./test-data/device2-${timestamp}`;
     context2 = await chromium.launchPersistentContext(userDataDir2, {
       channel: 'chromium',
-      headless: false,
+      headless: process.env.PLAYWRIGHT_HEADED !== 'true',
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
