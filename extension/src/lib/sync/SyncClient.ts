@@ -303,16 +303,27 @@ export class SyncClient {
             console.error('SSE: Failed to apply sync event:', error)
           })
           break
-        case 'sync_batch':
+        case 'sync_batch': {
           const eventCount = message.data.events.length
-          Promise.all(message.data.events.map((event: SyncEvent) => this.applySyncEvent(event)))
-            .then(() => {
-              console.log('SSE: Applied sync batch, notifying callback:', eventCount)
-              this.callbacks.onSyncEventsApplied?.(eventCount)
-            }).catch(error => {
-              console.error('SSE: Failed to apply sync batch:', error)
-            })
+          // Apply sequentially, oldest first - not Promise.all(). A page's CREATE event (no
+          // favicon yet, captured at navigation-commit before the browser resolves one) and its
+          // follow-up UPDATE (favicon now set) can land in the same batch; running both writes
+          // concurrently means whichever IndexedDB write happens to resolve last wins, so the
+          // favicon update is lost about half the time depending on scheduling. Sorting by
+          // timestamp and awaiting each one in order makes the outcome deterministic and correct
+          // regardless of arrival order within the batch.
+          const orderedEvents = [...message.data.events].sort((a: SyncEvent, b: SyncEvent) => a.timestamp - b.timestamp)
+          ;(async () => {
+            for (const event of orderedEvents) {
+              await this.applySyncEvent(event)
+            }
+            console.log('SSE: Applied sync batch, notifying callback:', eventCount)
+            this.callbacks.onSyncEventsApplied?.(eventCount)
+          })().catch(error => {
+            console.error('SSE: Failed to apply sync batch:', error)
+          })
           break
+        }
         case 'ping':
           // SSE doesn't need pong response - just log that we're alive
           console.log('SSE ping received')
@@ -665,17 +676,32 @@ export class SyncClient {
     console.log('SyncClient: Applying page sync event:', event.eventType, 'for', pageData.url)
     
     if (event.eventType === 'CREATE' || event.eventType === 'UPDATE') {
+      // Defense in depth beyond ordering the SSE batch itself sequentially (see the sync_batch
+      // handler above): this event's data always fully replaces whatever is stored for the URL,
+      // so if an older event ever gets applied after a newer one - out-of-order delivery between
+      // the SSE push and poll-download paths, a redelivered/retried event, etc - it would wipe
+      // out fields (most visibly the favicon, since a page's initial CREATE fires before the
+      // browser has resolved one, and a later UPDATE fills it in) that a newer event already set.
+      // Skip applying data that's older than what's already stored for this URL.
+      if (pageData.lastUpdate) {
+        const existingPage = await this.pageRepository.get(pageData.url)
+        if (existingPage && existingPage.lastUpdate.getTime() > pageData.lastUpdate) {
+          console.log('SyncClient: Skipping page sync event, stored data is newer:', pageData.url)
+          return
+        }
+      }
+
       const page = new Page(
         pageData.url,
         pageData.favicon,
         pageData.title,
         pageData.metadata || {}
       )
-      
+
       if (pageData.lastUpdate) {
         page.lastUpdate = new Date(pageData.lastUpdate)
       }
-      
+
       try {
         await this.pageRepository.addOrUpdate(page)
         console.log('SyncClient: Successfully added/updated page for:', pageData.url)
