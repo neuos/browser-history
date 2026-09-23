@@ -36,7 +36,13 @@ Not a gap: local search is real and wired — `HistoryList.svelte`'s search box 
 
 `E2ETestWebApplicationFactory`'s in-memory SQLite setup needed a real fix too: a bare `:memory:` connection string gives every new connection its own empty database, and routing everything through one shared, already-open connection "fixes" that but isn't safe under concurrent requests (SQLite doesn't support concurrent command execution on one connection object). It now uses SQLite's shared-cache mode (`mode=memory&cache=shared`, uniquely named per factory instance) instead — every request gets its own ordinary connection, all seeing the same database.
 
-Still open: the root Playwright suite (`tests/e2e/`) hasn't been run against `dotnet-backend` yet, only the dotnet E2E suite above and the manual smoke flow from the prior fix.
+### Root Playwright suite (`tests/e2e/`) — run for real, 2026-09-23
+
+All 10 tests across the 3 spec files pass against a live `dotnet-backend` (`bunx playwright test tests/e2e/ --workers=1`), driving the real built extension through actual browser navigation to real external sites (example.com, httpbin.org) — capture, sync, SSE live-update, cross-device delivery, and disconnect all verified working through the UI, not just curl.
+
+Two things worth knowing if this stops passing:
+- **Run it with `--workers=1`** (`package.json`'s `test:e2e*` scripts already do). `cross-device-sync.spec.ts` launches its own extra persistent browser contexts on top of the two other files' shared one; running all three as separate parallel workers is untested.
+- **Test data must stay unique across runs.** `Device.DeviceName` is unique in the database, which is the real dev SQLite file (`dotnet-backend/data/browser-history-dev.db`) and persists across test runs — every device name and the one count-comparison test's URL are now suffixed with a per-run `Date.now()`. If you add a new test that registers a device or asserts on a "count went up" pattern, give it a unique name/URL the same way or it'll 500 (device name) or silently fail to grow the count (URL revisit updates an existing HistoryNode instead of adding one) the second time the suite runs without a fresh database.
 
 ## Repository layout
 

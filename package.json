@@ -14,13 +14,13 @@
     "test:extension:build": "cd extension && bun run build",
     "test:extension:watch": "echo 'Extension test watch not yet implemented'",
     
-    "test:e2e": "bun run build:extension && playwright test tests/e2e/ --reporter=line",
+    "test:e2e": "bun run build:extension && playwright test tests/e2e/ --workers=1 --reporter=line",
     "test:e2e:core": "bun run build:extension && playwright test tests/e2e/extension-core.spec.ts --reporter=line",
     "test:e2e:sync": "bun run build:extension && playwright test tests/e2e/cross-device-sync.spec.ts --reporter=line",
     "test:e2e:verification": "bun run build:extension && playwright test tests/verification/ --reporter=line",
-    "test:e2e:headed": "bun run build:extension && playwright test tests/e2e/ --headed --reporter=line",
-    "test:e2e:ui": "bun run build:extension && playwright test tests/e2e/ --ui",
-    "test:e2e:debug": "bun run build:extension && playwright test tests/e2e/ --debug",
+    "test:e2e:headed": "bun run build:extension && playwright test tests/e2e/ --workers=1 --headed --reporter=line",
+    "test:e2e:ui": "bun run build:extension && playwright test tests/e2e/ --workers=1 --ui",
+    "test:e2e:debug": "bun run build:extension && playwright test tests/e2e/ --workers=1 --debug",
     "test:e2e:report": "playwright show-report",
     
     "debug:extension": "cd extension && chmod +x scripts/debug-sync.sh && ./scripts/debug-sync.sh",
