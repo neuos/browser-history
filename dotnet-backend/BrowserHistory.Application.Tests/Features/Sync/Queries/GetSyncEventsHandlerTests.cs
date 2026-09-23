@@ -25,6 +25,7 @@ public class GetSyncEventsHandlerTests
         // (Date.now()-style), never an ISO date string.
         var timestamp = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
         var syncEvent = SyncEvent.Create(
+            Guid.NewGuid(),
             "https://example.com/page",
             DeviceId.New(),
             timestamp,

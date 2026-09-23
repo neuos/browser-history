@@ -119,8 +119,11 @@ public class SubmitSyncEventsCommandHandler : IRequestHandler<SubmitSyncEventsCo
                 var checksum = Checksum.FromContent(dataJson).ToString();
                 var timestamp = DateTimeOffset.FromUnixTimeMilliseconds(eventDto.Timestamp).UtcDateTime;
 
-                // Create domain entity from DTO
+                // Create domain entity from DTO - eventDto.Id becomes the SyncEvent's own Id
+                // (the EF primary key), which is what makes the existingEventIds check above a
+                // real idempotency/conflict check instead of comparing against an unrelated value.
                 var syncEvent = SyncEvent.Create(
+                    eventDto.Id,
                     eventDto.EntityId,
                     request.DeviceId,
                     timestamp,

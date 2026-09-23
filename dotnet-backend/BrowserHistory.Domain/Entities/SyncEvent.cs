@@ -11,6 +11,7 @@ public class SyncEvent
     private SyncEvent() { } // For EF Core
 
     private SyncEvent(
+        Guid id,
         string entityId,
         DeviceId deviceId,
         DateTime timestamp,
@@ -20,7 +21,7 @@ public class SyncEvent
         string checksum,
         string? metadata = null)
     {
-        Id = Guid.NewGuid();
+        Id = id;
         EntityId = entityId;
         DeviceId = deviceId;
         Timestamp = timestamp;
@@ -58,9 +59,14 @@ public class SyncEvent
     /// <summary>
     /// Creates a new detailed sync event tied to a specific entity (a history node or page).
     /// EntityId is a string because entities are keyed differently: history nodes use a GUID,
-    /// pages use their URL.
+    /// pages use their URL. The caller (client) supplies `id`, not the server: it's the
+    /// idempotency key that lets a client safely resubmit the same event (e.g. after a timeout
+    /// where it doesn't know whether the first attempt landed) without creating a duplicate -
+    /// resubmission detection in SubmitSyncEventsCommandHandler only works because this id is
+    /// also the EF primary key, so a second submission is a genuine, checkable conflict.
     /// </summary>
     public static SyncEvent Create(
+        Guid id,
         string entityId,
         DeviceId deviceId,
         DateTime timestamp,
@@ -70,6 +76,9 @@ public class SyncEvent
         string checksum,
         string? metadata = null)
     {
+        if (id == Guid.Empty)
+            throw new ArgumentException("Id cannot be empty", nameof(id));
+
         if (string.IsNullOrWhiteSpace(entityId))
             throw new ArgumentException("Entity id cannot be null or empty", nameof(entityId));
 
@@ -79,7 +88,7 @@ public class SyncEvent
         if (string.IsNullOrWhiteSpace(checksum))
             throw new ArgumentException("Checksum cannot be null or empty", nameof(checksum));
 
-        return new SyncEvent(entityId, deviceId, timestamp, eventType, entityType,
+        return new SyncEvent(id, entityId, deviceId, timestamp, eventType, entityType,
             data, checksum, metadata);
     }
 
