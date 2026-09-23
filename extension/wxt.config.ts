@@ -33,6 +33,12 @@ export default defineConfig({
         '96': 'icon/96.png',
         '128': 'icon/128.png'
       }
-    }
+    },
+    browser_specific_settings: {
+      gecko: {
+        id: 'browser-history-sync@neuhuber.eu',
+        strict_min_version: '109.0',
+      },
+    },
   },
 });
