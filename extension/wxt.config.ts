@@ -54,6 +54,13 @@ export default defineConfig({
         // inspecting the actual build output.
         ...({ data_collection_permissions: { required: ['browsingActivity'] } } as object),
       },
+      // Firefox for Android is the actual primary target for this extension (per the whole
+      // point of this project), but without this block AMO/Firefox track its compatibility
+      // range independently of gecko.strict_min_version above and leave it unspecified/implicit
+      // - the earlier "142 introduced support" vs "140" validation warnings were exactly this:
+      // Mozilla already tracks desktop and Android minimums separately, so this needs to be
+      // declared separately too, not inferred from the desktop block.
+      ...({ gecko_android: { strict_min_version: '142.0' } } as object),
     },
   },
 });
