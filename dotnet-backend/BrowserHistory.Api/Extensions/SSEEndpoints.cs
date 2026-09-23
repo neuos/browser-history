@@ -54,7 +54,11 @@ public static class SSEEndpoints
                 connectionManager.RemoveConnection(deviceId);
             }
 
-            return Results.Ok();
+            // The SSE loop above already wrote directly to the response stream, so the
+            // response has already started by the time we get here - Results.Ok() would
+            // try to set the status code again and throw InvalidOperationException.
+            // Results.Empty is a no-op result for endpoints that manage their own response.
+            return Results.Empty;
         })
         .WithName("SSEEvents")
         .WithSummary("Establish Server-Sent Events connection for real-time notifications")
