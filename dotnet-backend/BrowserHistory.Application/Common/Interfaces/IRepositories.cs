@@ -39,6 +39,23 @@ public interface ISyncEventRepository
 }
 
 /// <summary>
+/// Repository interface for FaviconBlob operations
+/// </summary>
+public interface IFaviconBlobRepository
+{
+    Task<FaviconBlob?> GetByHashAsync(string hash, CancellationToken cancellationToken = default);
+    Task<bool> ExistsAsync(string hash, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Inserts the blob unless one with this hash already exists (checked again at the database
+    /// level, not just via a prior ExistsAsync call, to absorb the race between two devices
+    /// independently uploading the same new favicon at nearly the same time). Returns true if a
+    /// row with this hash already existed (nothing was inserted), false if this call inserted it.
+    /// </summary>
+    Task<bool> CreateIfNotExistsAsync(FaviconBlob faviconBlob, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// Unit of Work pattern for coordinating multiple repository operations
 /// </summary>
 public interface IUnitOfWork

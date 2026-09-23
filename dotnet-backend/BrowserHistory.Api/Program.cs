@@ -92,6 +92,7 @@ app.UseAuthorization();
 app.MapAuthEndpoints();
 app.MapDeviceEndpoints();
 app.MapSyncEndpoints();
+app.MapFaviconEndpoints();
 app.MapSSEEndpoints();
 app.MapHealthEndpoints();
 

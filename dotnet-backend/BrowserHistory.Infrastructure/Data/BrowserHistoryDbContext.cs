@@ -16,6 +16,7 @@ public class BrowserHistoryDbContext : DbContext
 
     public DbSet<Device> Devices => Set<Device>();
     public DbSet<SyncEvent> SyncEvents => Set<SyncEvent>();
+    public DbSet<FaviconBlob> FaviconBlobs => Set<FaviconBlob>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -38,6 +38,7 @@ public static class DependencyInjection
         // Repository pattern
         services.AddScoped<IDeviceRepository, DeviceRepository>();
         services.AddScoped<ISyncEventRepository, SyncEventRepository>();
+        services.AddScoped<IFaviconBlobRepository, FaviconBlobRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // Services
