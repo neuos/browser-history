@@ -1,22 +1,27 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using Microsoft.Extensions.DependencyInjection;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using BrowserHistory.E2E.Tests.Infrastructure;
-using BrowserHistory.Api.DTOs;
-using BrowserHistory.Application.Commands.Sync;
-using BrowserHistory.Domain.Entities;
+using BrowserHistory.Application.Features.Auth.Models;
+using BrowserHistory.Application.Features.Sync.Models;
 using BrowserHistory.Infrastructure.Data;
 
 namespace BrowserHistory.E2E.Tests.Workflows;
 
 /// <summary>
-/// End-to-end tests for multi-device synchronization workflows.
-/// Tests real-world scenarios where multiple devices sync browser history.
+/// End-to-end tests for multi-device synchronization over /api/v1/sync/events - the real
+/// event-sourcing model (submit an event, other devices poll/download it), not a
+/// full-history-upload-and-download or server-side conflict-resolution model. The server never
+/// materializes synced content into a queryable HistoryNodes table server-side - it only relays
+/// events - so these tests verify the event feed itself, which is what the extension relies on.
 /// </summary>
 [Collection("E2E Tests")]
 public class SynchronizationWorkflowTests : IClassFixture<E2ETestWebApplicationFactory>
 {
+    private const string SharedSecret = "your-shared-secret-for-device-registration";
+
     private readonly E2ETestWebApplicationFactory _factory;
     private readonly HttpClient _client;
 
@@ -31,326 +36,193 @@ public class SynchronizationWorkflowTests : IClassFixture<E2ETestWebApplicationF
     {
         // Arrange
         await _factory.ClearTestDataAsync();
+        var device1 = await RegisterDeviceAsync("Chrome Desktop");
+        var device2 = await RegisterDeviceAsync("Firefox Mobile");
 
-        // Register two devices
-        var device1Response = await RegisterDevice("Chrome Desktop");
-        var device2Response = await RegisterDevice("Firefox Mobile");
-        
-        var device1Id = device1Response.DeviceId;
-        var device2Id = device2Response.DeviceId;
+        // Act & Assert - Step 1: Device 1 submits two history events
+        var githubId = Guid.NewGuid().ToString();
+        var soId = Guid.NewGuid().ToString();
+        var submitResponse = await SubmitEventsAsync(device1.Token,
+            HistoryEvent(githubId, "https://github.com", "GitHub"),
+            HistoryEvent(soId, "https://stackoverflow.com", "Stack Overflow"));
+        submitResponse.processedCount.Should().Be(2);
 
-        // Act & Assert - Step 1: Device 1 uploads history
-        var historyEntries = new[]
+        // Step 2: Device 2 downloads events since the beginning of time, excluding its own
+        var (events, _, _) = await GetEventsAsync(device2.Token, since: 0);
+        events.Should().HaveCount(2);
+        events.Should().AllSatisfy(e =>
         {
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://github.com",
-                Title = "GitHub",
-                VisitCount = 5,
-                LastVisitTime = DateTime.UtcNow.AddHours(-2),
-                LastVisitTimeUtc = DateTime.UtcNow.AddHours(-2),
-                LastUpdated = DateTime.UtcNow.AddHours(-2)
-            },
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://stackoverflow.com",
-                Title = "Stack Overflow",
-                VisitCount = 3,
-                LastVisitTime = DateTime.UtcNow.AddHours(-1),
-                LastVisitTimeUtc = DateTime.UtcNow.AddHours(-1),
-                LastUpdated = DateTime.UtcNow.AddHours(-1)
-            }
-        };
-
-        var uploadRequest = new UploadHistoryCommand(device1Id, historyEntries);
-        var uploadResponse = await _client.PostAsJsonAsync("/api/sync/upload", uploadRequest);
-        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var uploadResult = await uploadResponse.Content.ReadFromJsonAsync<UploadHistoryResponse>();
-        uploadResult!.ProcessedCount.Should().Be(2);
-        uploadResult.SuccessCount.Should().Be(2);
-        uploadResult.ErrorCount.Should().Be(0);
-
-        // Step 2: Device 2 requests sync updates
-        var syncResponse = await _client.GetAsync($"/api/sync/events?deviceId={device2Id}&since={DateTime.UtcNow.AddDays(-1):O}");
-        syncResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        var syncEvents = await syncResponse.Content.ReadFromJsonAsync<SyncEventDto[]>();
-        syncEvents.Should().NotBeNull();
-        syncEvents!.Should().HaveCount(2); // Two create events from device 1
-        syncEvents.Should().AllSatisfy(e =>
-        {
-            e.DeviceId.Should().Be(device1Id);
-            e.EventType.Should().Be("Create");
-            e.EntityType.Should().Be("History");
+            e.DeviceId.Should().Be(device1.DeviceId);
+            e.EventType.Should().Be("CREATE");
+            e.EntityType.Should().Be("history");
         });
+        events.Should().Contain(e => e.EntityId == githubId);
+        events.Should().Contain(e => e.EntityId == soId);
 
-        // Step 3: Device 2 downloads history
-        var downloadResponse = await _client.GetAsync($"/api/sync/download?deviceId={device2Id}&since={DateTime.UtcNow.AddDays(-1):O}");
-        downloadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Step 3: Device 2 submits its own event
+        var redditId = Guid.NewGuid().ToString();
+        await SubmitEventsAsync(device2.Token, HistoryEvent(redditId, "https://reddit.com", "Reddit"));
 
-        var downloadResult = await downloadResponse.Content.ReadFromJsonAsync<DownloadHistoryResponse>();
-        downloadResult!.Entries.Should().HaveCount(2);
-        downloadResult.Entries.Should().Contain(e => e.Url == "https://github.com");
-        downloadResult.Entries.Should().Contain(e => e.Url == "https://stackoverflow.com");
+        // Step 4: Device 1 downloads, excluding its own device - should see only device 2's event
+        var (device1View, _, _) = await GetEventsAsync(device1.Token, since: 0, excludeDevice: true);
+        device1View.Should().ContainSingle(e => e.EntityId == redditId && e.DeviceId == device2.DeviceId);
 
-        // Step 4: Device 2 uploads its own history
-        var device2History = new[]
-        {
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://reddit.com",
-                Title = "Reddit",
-                VisitCount = 1,
-                LastVisitTime = DateTime.UtcNow.AddMinutes(-30),
-                LastVisitTimeUtc = DateTime.UtcNow.AddMinutes(-30),
-                LastUpdated = DateTime.UtcNow.AddMinutes(-30)
-            }
-        };
-
-        var device2UploadRequest = new UploadHistoryCommand(device2Id, device2History);
-        var device2UploadResponse = await _client.PostAsJsonAsync("/api/sync/upload", device2UploadRequest);
-        device2UploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-
-        // Step 5: Device 1 syncs to get device 2's history
-        var device1SyncResponse = await _client.GetAsync($"/api/sync/download?deviceId={device1Id}&since={DateTime.UtcNow.AddMinutes(-45):O}");
-        var device1Download = await device1SyncResponse.Content.ReadFromJsonAsync<DownloadHistoryResponse>();
-        
-        device1Download!.Entries.Should().HaveCount(3); // All entries from both devices
-        device1Download.Entries.Should().Contain(e => e.Url == "https://reddit.com");
-
-        // Verify complete sync state in database
+        // Verify total events persisted in the database
         using var scope = _factory.Services.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<BrowserHistoryDbContext>();
-        
-        var allHistory = context.HistoryNodes.ToList();
-        allHistory.Should().HaveCount(3);
-        
-        var allSyncEvents = context.SyncEvents.ToList();
-        allSyncEvents.Should().HaveCount(3); // 2 from device 1, 1 from device 2
+        context.SyncEvents.Count(e => e.EventType == BrowserHistory.Domain.Entities.SyncEventType.Create)
+            .Should().Be(3);
     }
 
     [Fact]
-    public async Task Incremental_Sync_Should_Only_Return_New_Changes()
+    public async Task Incremental_Sync_Should_Only_Return_Events_Since_Given_Timestamp()
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        var deviceResponse = await RegisterDevice("Test Device");
-        var deviceId = deviceResponse.DeviceId;
+        var device = await RegisterDeviceAsync("Test Device");
 
-        var baselineTime = DateTime.UtcNow.AddHours(-2);
+        await SubmitEventsAsync(device.Token, HistoryEvent(Guid.NewGuid().ToString(), "https://old.example.com", "Old"));
+        await Task.Delay(10); // ensure a distinguishable timestamp boundary
+        var cutoff = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        await Task.Delay(10);
+        var newId = Guid.NewGuid().ToString();
+        await SubmitEventsAsync(device.Token, HistoryEvent(newId, "https://new.example.com", "New"));
 
-        // Upload initial history
-        var initialHistory = new[]
-        {
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://example.com",
-                Title = "Example",
-                VisitCount = 1,
-                LastVisitTime = baselineTime,
-                LastVisitTimeUtc = baselineTime,
-                LastUpdated = baselineTime
-            }
-        };
+        // Act
+        var (events, _, _) = await GetEventsAsync(device.Token, since: cutoff);
 
-        await _client.PostAsJsonAsync("/api/sync/upload", new UploadHistoryCommand(deviceId, initialHistory));
-
-        // Act - Add new history after baseline
-        var newHistory = new[]
-        {
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://newsite.com",
-                Title = "New Site",
-                VisitCount = 1,
-                LastVisitTime = DateTime.UtcNow.AddMinutes(-10),
-                LastVisitTimeUtc = DateTime.UtcNow.AddMinutes(-10),
-                LastUpdated = DateTime.UtcNow.AddMinutes(-10)
-            }
-        };
-
-        await _client.PostAsJsonAsync("/api/sync/upload", new UploadHistoryCommand(deviceId, newHistory));
-
-        // Request incremental sync since baseline
-        var incrementalTime = DateTime.UtcNow.AddHours(-1);
-        var syncResponse = await _client.GetAsync($"/api/sync/events?deviceId={deviceId}&since={incrementalTime:O}");
-        var syncEvents = await syncResponse.Content.ReadFromJsonAsync<SyncEventDto[]>();
-
-        // Assert - Only new changes returned
-        syncEvents.Should().HaveCount(1);
-        syncEvents![0].EntityData.Should().Contain("newsite.com");
-
-        // Verify download also respects incremental sync
-        var downloadResponse = await _client.GetAsync($"/api/sync/download?deviceId={deviceId}&since={incrementalTime:O}");
-        var downloadResult = await downloadResponse.Content.ReadFromJsonAsync<DownloadHistoryResponse>();
-        
-        downloadResult!.Entries.Should().HaveCount(1);
-        downloadResult.Entries[0].Url.Should().Be("https://newsite.com");
+        // Assert
+        events.Should().ContainSingle(e => e.EntityId == newId);
     }
 
     [Fact]
-    public async Task Sync_With_Conflicting_Updates_Should_Use_Last_Writer_Wins()
+    public async Task Sync_Events_Should_Be_Returned_In_Chronological_Order()
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        var device1Response = await RegisterDevice("Device 1");
-        var device2Response = await RegisterDevice("Device 2");
+        var device = await RegisterDeviceAsync("Test Device");
+        var ids = new[] { Guid.NewGuid().ToString(), Guid.NewGuid().ToString(), Guid.NewGuid().ToString() };
 
-        var sharedEntryId = Guid.NewGuid();
-        var baseTime = DateTime.UtcNow.AddHours(-1);
+        // Act - submit out of order, each with an explicit, distinct timestamp
+        var baseTime = DateTimeOffset.UtcNow.AddHours(-1).ToUnixTimeMilliseconds();
+        await SubmitEventsAsync(device.Token, HistoryEvent(ids[2], "https://third.example.com", "Third", baseTime + 30_000));
+        await SubmitEventsAsync(device.Token, HistoryEvent(ids[0], "https://first.example.com", "First", baseTime));
+        await SubmitEventsAsync(device.Token, HistoryEvent(ids[1], "https://second.example.com", "Second", baseTime + 15_000));
 
-        // Both devices upload same entry with different data
-        var device1Entry = new UploadHistoryEntryDto
-        {
-            Id = sharedEntryId,
-            Url = "https://shared.com",
-            Title = "Device 1 Title",
-            VisitCount = 5,
-            LastVisitTime = baseTime,
-            LastVisitTimeUtc = baseTime,
-            LastUpdated = baseTime
-        };
+        var (events, _, _) = await GetEventsAsync(device.Token, since: 0);
 
-        var device2Entry = new UploadHistoryEntryDto
-        {
-            Id = sharedEntryId,
-            Url = "https://shared.com",
-            Title = "Device 2 Title", // Different title
-            VisitCount = 3, // Different visit count
-            LastVisitTime = baseTime.AddMinutes(30), // Later timestamp
-            LastVisitTimeUtc = baseTime.AddMinutes(30),
-            LastUpdated = baseTime.AddMinutes(30)
-        };
-
-        // Act - Upload from device 1 first
-        await _client.PostAsJsonAsync("/api/sync/upload", 
-            new UploadHistoryCommand(device1Response.DeviceId, new[] { device1Entry }));
-
-        // Then upload from device 2 (later timestamp should win)
-        await _client.PostAsJsonAsync("/api/sync/upload", 
-            new UploadHistoryCommand(device2Response.DeviceId, new[] { device2Entry }));
-
-        // Assert - Device 2's version should be the final state
-        var downloadResponse = await _client.GetAsync($"/api/sync/download?deviceId={device1Response.DeviceId}&since={DateTime.UtcNow.AddDays(-1):O}");
-        var downloadResult = await downloadResponse.Content.ReadFromJsonAsync<DownloadHistoryResponse>();
-
-        var finalEntry = downloadResult!.Entries.Single(e => e.Id == sharedEntryId);
-        finalEntry.Title.Should().Be("Device 2 Title");
-        finalEntry.VisitCount.Should().Be(3);
-        finalEntry.LastVisitTime.Should().BeCloseTo(baseTime.AddMinutes(30), TimeSpan.FromSeconds(1));
+        // Assert
+        events.Should().HaveCount(3);
+        events.Should().BeInAscendingOrder(e => e.Timestamp);
+        events.Select(e => e.EntityId).Should().ContainInOrder(ids[0], ids[1], ids[2]);
     }
 
     [Fact]
-    public async Task Large_Batch_Sync_Should_Handle_Pagination()
+    public async Task Large_Batch_Sync_Should_Be_Fully_Downloadable()
     {
         // Arrange
         await _factory.ClearTestDataAsync();
-        var deviceResponse = await RegisterDevice("Test Device");
-        var deviceId = deviceResponse.DeviceId;
-
-        // Create large batch of history entries (more than typical page size)
-        var largeHistoryBatch = Enumerable.Range(0, 150)
-            .Select(i => new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = $"https://site{i}.com",
-                Title = $"Site {i}",
-                VisitCount = 1,
-                LastVisitTime = DateTime.UtcNow.AddMinutes(-i),
-                LastVisitTimeUtc = DateTime.UtcNow.AddMinutes(-i),
-                LastUpdated = DateTime.UtcNow.AddMinutes(-i)
-            })
+        var device = await RegisterDeviceAsync("Test Device");
+        var payloadEvents = Enumerable.Range(0, 150)
+            .Select(i => HistoryEvent(Guid.NewGuid().ToString(), $"https://site{i}.example.com", $"Site {i}"))
             .ToArray();
 
-        // Act - Upload large batch
-        var uploadResponse = await _client.PostAsJsonAsync("/api/sync/upload", 
-            new UploadHistoryCommand(deviceId, largeHistoryBatch));
-        uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Act
+        var submitResult = await SubmitEventsAsync(device.Token, payloadEvents);
+        submitResult.processedCount.Should().Be(150);
 
-        var uploadResult = await uploadResponse.Content.ReadFromJsonAsync<UploadHistoryResponse>();
-        uploadResult!.ProcessedCount.Should().Be(150);
-        uploadResult.SuccessCount.Should().Be(150);
+        var other = await RegisterDeviceAsync("Other Device");
+        var (events, totalCount, _) = await GetEventsAsync(other.Token, since: 0, take: 1000);
 
-        // Verify all entries can be downloaded
-        var downloadResponse = await _client.GetAsync($"/api/sync/download?deviceId={deviceId}&since={DateTime.UtcNow.AddDays(-1):O}");
-        var downloadResult = await downloadResponse.Content.ReadFromJsonAsync<DownloadHistoryResponse>();
-
-        downloadResult!.Entries.Should().HaveCount(150);
-        downloadResult.Entries.Should().OnlyHaveUniqueItems(e => e.Url);
+        // Assert
+        events.Should().HaveCount(150);
+        totalCount.Should().Be(150);
+        events.Select(e => e.EntityId).Should().OnlyHaveUniqueItems();
     }
 
     [Fact]
-    public async Task Sync_Events_Should_Maintain_Chronological_Order()
+    public async Task Page_Sync_Events_Use_Url_As_EntityId_Not_A_Guid()
     {
-        // Arrange
+        // Arrange - the whole reason SyncEvent.EntityId is a string: pages are keyed by URL.
         await _factory.ClearTestDataAsync();
-        var deviceResponse = await RegisterDevice("Test Device");
-        var deviceId = deviceResponse.DeviceId;
+        var device1 = await RegisterDeviceAsync("Device A");
+        var device2 = await RegisterDeviceAsync("Device B");
+        const string pageUrl = "https://example.com/some/article";
 
-        var baseTime = DateTime.UtcNow.AddHours(-1);
-
-        // Upload entries with specific timestamps in non-chronological order
-        var entries = new[]
+        var payload = new
         {
-            new UploadHistoryEntryDto
+            events = new[]
             {
-                Id = Guid.NewGuid(),
-                Url = "https://third.com",
-                Title = "Third",
-                VisitCount = 1,
-                LastVisitTime = baseTime.AddMinutes(30),
-                LastVisitTimeUtc = baseTime.AddMinutes(30),
-                LastUpdated = baseTime.AddMinutes(30)
-            },
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://first.com",
-                Title = "First",
-                VisitCount = 1,
-                LastVisitTime = baseTime,
-                LastVisitTimeUtc = baseTime,
-                LastUpdated = baseTime
-            },
-            new UploadHistoryEntryDto
-            {
-                Id = Guid.NewGuid(),
-                Url = "https://second.com",
-                Title = "Second",
-                VisitCount = 1,
-                LastVisitTime = baseTime.AddMinutes(15),
-                LastVisitTimeUtc = baseTime.AddMinutes(15),
-                LastUpdated = baseTime.AddMinutes(15)
+                new
+                {
+                    id = Guid.NewGuid(),
+                    timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    eventType = "CREATE",
+                    entityType = "page",
+                    entityId = pageUrl,
+                    data = new { url = pageUrl, title = "Some Article" }
+                }
             }
         };
 
-        await _client.PostAsJsonAsync("/api/sync/upload", new UploadHistoryCommand(deviceId, entries));
+        // Act
+        await AuthorizedPostAsync("/api/v1/sync/events", payload, device1.Token);
+        var (events, _, _) = await GetEventsAsync(device2.Token, since: 0);
 
-        // Act - Get sync events
-        var syncResponse = await _client.GetAsync($"/api/sync/events?deviceId={deviceId}&since={DateTime.UtcNow.AddDays(-1):O}");
-        var syncEvents = await syncResponse.Content.ReadFromJsonAsync<SyncEventDto[]>();
-
-        // Assert - Events should be in chronological order by timestamp
-        syncEvents.Should().HaveCount(3);
-        syncEvents.Should().BeInAscendingOrder(e => e.Timestamp);
-        
-        // Verify the order matches our expected chronological sequence
-        syncEvents[0].EntityData.Should().Contain("first.com");
-        syncEvents[1].EntityData.Should().Contain("second.com");
-        syncEvents[2].EntityData.Should().Contain("third.com");
+        // Assert
+        var pageEvent = events.Should().ContainSingle(e => e.EntityType == "page").Subject;
+        pageEvent.EntityId.Should().Be(pageUrl);
+        pageEvent.Data!.Value.GetProperty("title").GetString().Should().Be("Some Article");
     }
 
-    private async Task<RegisterDeviceResponse> RegisterDevice(string deviceName)
+    private static object HistoryEvent(string entityId, string url, string title, long? timestamp = null) => new
     {
-        var request = new RegisterDeviceCommand(deviceName);
-        var response = await _client.PostAsJsonAsync("/api/devices/register", request);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<RegisterDeviceResponse>())!;
+        id = Guid.NewGuid(),
+        timestamp = timestamp ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+        eventType = "CREATE",
+        entityType = "history",
+        entityId,
+        data = new { url, title }
+    };
+
+    private async Task<(int processedCount, string[] conflicts)> SubmitEventsAsync(string token, params object[] events)
+    {
+        var response = await AuthorizedPostAsync("/api/v1/sync/events", new { events }, token);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        var processedCount = result.GetProperty("processedCount").GetInt32();
+        var conflicts = result.GetProperty("conflicts").EnumerateArray().Select(c => c.GetString()!).ToArray();
+        return (processedCount, conflicts);
     }
+
+    private async Task<(List<SyncEventDto> Events, int TotalCount, bool HasMore)> GetEventsAsync(
+        string token, long since, bool excludeDevice = false, int take = 100)
+    {
+        var url = $"/api/v1/sync/events?since={since}&exclude_device={(excludeDevice ? "true" : "false")}&take={take}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        var response = await _client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var result = await response.Content.ReadFromJsonAsync<GetSyncEventsResponseBody>();
+        return (result!.Events, result.TotalCount, result.HasMore);
+    }
+
+    private async Task<HttpResponseMessage> AuthorizedPostAsync(string url, object payload, string token)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(payload) };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return await _client.SendAsync(request);
+    }
+
+    private async Task<(string DeviceId, string Token)> RegisterDeviceAsync(string namePrefix)
+    {
+        var response = await _client.PostAsJsonAsync("/api/v1/auth/register-device",
+            new { deviceName = $"{namePrefix}-{Guid.NewGuid()}", secret = SharedSecret });
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<RegisterDeviceResponse>();
+        return (result!.DeviceId, result.Token);
+    }
+
+    private sealed record GetSyncEventsResponseBody(List<SyncEventDto> Events, int TotalCount, bool HasMore);
 }
