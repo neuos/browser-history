@@ -61,6 +61,11 @@ builder.Services.AddRateLimiting();
 
 var app = builder.Build();
 
+// Apply pending EF Core migrations for both databases on startup (never actually invoked before -
+// see InitializeDatabaseAsync's remarks). A fresh deployment with no database files would 500 on
+// every request without this.
+await app.Services.InitializeDatabaseAsync();
+
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
