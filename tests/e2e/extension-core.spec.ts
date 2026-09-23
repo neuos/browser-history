@@ -3,6 +3,10 @@ import { ExtensionManager } from '../pages/ExtensionManager';
 
 test.describe.configure({ mode: 'serial' });
 
+// Device.DeviceName is unique in the backend and the dev database persists across test runs, so
+// a fixed name would 500 with a UNIQUE constraint violation on the second run.
+const RUN_ID = Date.now();
+
 test.describe('Browser History Extension - Core Functionality', () => {
   test.beforeAll(async ({ backendApi }) => {
     // Verify backend is running
@@ -21,8 +25,8 @@ test.describe('Browser History Extension - Core Functionality', () => {
   test('should configure sync successfully', async ({ popupPage }) => {
     await popupPage.setupSync(
       'http://localhost:5165',
-      'Test Device - Playwright E2E',
-      'secret'  // Use the actual shared secret from dotnet-backend/BrowserHistory.Api/appsettings.Development.json
+      `Test Device - Playwright E2E ${RUN_ID}`,
+      'development-shared-secret'  // Use the actual shared secret from dotnet-backend/BrowserHistory.Api/appsettings.Development.json
     );
     
     const status = await popupPage.getSyncStatus();
@@ -42,8 +46,8 @@ test.describe('Browser History Extension - Core Functionality', () => {
       if (!isConfigured) {
         await popupPage.setupSync(
           'http://localhost:5165',
-          'Test Device - History Test',
-          'secret'
+          `Test Device - History Test ${RUN_ID}`,
+          'development-shared-secret'
         );
       }
     } catch (error) {
@@ -87,8 +91,8 @@ test.describe('Browser History Extension - Core Functionality', () => {
     if (!isConfigured) {
       await popupPage.setupSync(
         'http://localhost:5165',
-        'Test Device - Disconnect Test',
-        'secret'
+        `Test Device - Disconnect Test ${RUN_ID}`,
+        'development-shared-secret'
       );
       
       const setupStatus = await popupPage.getSyncStatus();
@@ -109,8 +113,8 @@ test.describe('Browser History Extension - Core Functionality', () => {
       if (!isConfigured) {
         await popupPage.setupSync(
           'http://localhost:5165',
-          'Test Device - SSE Test',
-          'secret'
+          `Test Device - SSE Test ${RUN_ID}`,
+          'development-shared-secret'
         );
       }
     } catch (error) {
@@ -136,8 +140,8 @@ test.describe('Browser History Extension - Core Functionality', () => {
       if (!isConfigured) {
         await popupPage.setupSync(
           'http://localhost:5165',
-          'Test Device - Auto Update',
-          'secret'
+          `Test Device - Auto Update ${RUN_ID}`,
+          'development-shared-secret'
         );
       }
     } catch (error) {
@@ -148,21 +152,24 @@ test.describe('Browser History Extension - Core Functionality', () => {
     const initialHistoryItems = await popupPage.getHistoryItems();
     const initialCount = initialHistoryItems.length;
     
-    // Visit a test page to generate local history
-    await extensionManager.visitPage('https://example.com/sync-test');
-    
+    // Visit a test page to generate local history. Must be unique per run: a repeat visit to an
+    // already-known URL updates that HistoryNode's visit count in place rather than adding a new
+    // node, so a fixed URL wouldn't grow the list on a second run of this suite.
+    const testUrl = `https://example.com/sync-test-${RUN_ID}`;
+    await extensionManager.visitPage(testUrl);
+
     // Wait for sync to complete
     await popupPage.page.waitForTimeout(1000);
-    
+
     // Check if history list has updated
     const updatedHistoryItems = await popupPage.getHistoryItems();
     const updatedCount = updatedHistoryItems.length;
-    
+
     expect(updatedCount).toBeGreaterThan(initialCount);
-    
+
     // Verify the new history item is there
-    const hasNewItem = updatedHistoryItems.some(item => 
-      item.url.includes('example.com/sync-test')
+    const hasNewItem = updatedHistoryItems.some(item =>
+      item.url.includes(testUrl)
     );
     expect(hasNewItem).toBe(true);
   });

@@ -1,6 +1,10 @@
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { ExtensionManager, ExtensionPopupPage, BackendApi } from '../pages';
 
+// Device.DeviceName is unique in the backend and the dev database persists across test runs, so
+// a fixed name would 500 with a UNIQUE constraint violation on the second run.
+const RUN_ID = Date.now();
+
 test.describe('Real-time Sync Notification', () => {
   let context: BrowserContext;
   let extensionId: string;
@@ -58,8 +62,8 @@ test.describe('Real-time Sync Notification', () => {
     await popupPage.goto(extensionId);
     await popupPage.setupSync(
       'http://localhost:5165',
-      'Test Device - Real-time Sync',
-      'secret'
+      `Test Device - Real-time Sync ${RUN_ID}`,
+      'development-shared-secret'
     );
 
     console.log('Device configured for sync');
@@ -124,8 +128,8 @@ test.describe('Real-time Sync Notification', () => {
     try {
       await popupPage.setupSync(
         'http://localhost:5165',
-        'Test Device - Event Handler',
-        'secret'
+        `Test Device - Event Handler ${RUN_ID}`,
+        'development-shared-secret'
       );
       console.log('Device configured for sync');
       // Wait for initial sync to complete

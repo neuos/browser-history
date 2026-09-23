@@ -1,6 +1,10 @@
 import { test, expect, chromium, type BrowserContext } from '@playwright/test';
 import { ExtensionManager, ExtensionPopupPage, BackendApi } from '../pages';
 
+// Device.DeviceName is unique in the backend and the dev database persists across test runs, so
+// a fixed name would 500 with a UNIQUE constraint violation on the second run.
+const RUN_ID = Date.now();
+
 test.describe.serial('Cross-Device Sync Notification', () => {
   let context1: BrowserContext;
   let context2: BrowserContext;
@@ -91,8 +95,8 @@ test.describe.serial('Cross-Device Sync Notification', () => {
     await popupPage1.goto(extensionId1);
     await popupPage1.setupSync(
       'http://localhost:5165',
-      'Test Device - Real Time Updates',
-      'secret'
+      `Test Device - Real Time Updates ${RUN_ID}`,
+      'development-shared-secret'
     );
 
     console.log('Device configured for sync');
