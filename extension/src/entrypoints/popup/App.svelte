@@ -4,6 +4,7 @@
   import { detectSystemTheme, listenForThemeChanges } from '@/lib/theme';
   import { onMount, onDestroy } from 'svelte';
   import type { DeviceInfo, SyncStatus } from '@/lib/sync/types';
+  import { colorForDeviceId } from '@/lib/deviceColor';
 
   let showSyncStatus = false;
   let isConfigured = false;
@@ -15,6 +16,9 @@
   // Reactive status for UI
   $: statusColor = !isConfigured ? '#6c757d' : (!syncStatus?.isConnected ? '#ffc107' : '#28a745');
   $: statusText = !isConfigured ? 'Not Configured' : (!syncStatus?.isConnected ? 'Disconnected' : 'Connected');
+  // Preview swatch for the emoji field: the same deterministic color the history list falls
+  // back to for this device when no emoji has been picked, so the field previews the real result.
+  $: emojiSwatchColor = deviceInfo?.deviceId ? colorForDeviceId(deviceInfo.deviceId) : '#ccc';
   
   // Setup form variables
   let isSetupMode = false;
@@ -256,8 +260,8 @@
                 class="emoji-input"
                 type="text"
                 bind:value={deviceEmoji}
-                placeholder="🙂"
-                title="Emoji shown next to this device's history entries"
+                style={deviceEmoji ? undefined : `background-color: ${emojiSwatchColor};`}
+                title="Emoji shown next to this device's history entries. Leave empty to use a color swatch instead."
                 disabled={isSetupLoading}
               />
             </div>
@@ -532,17 +536,26 @@
 
   .device-name-row {
     display: flex;
-    gap: 6px;
+    align-items: center;
+    gap: 8px;
   }
 
-  .device-name-row input[type="text"]:not(.emoji-input) {
+  .device-name-row input#deviceName {
     flex: 1;
+    min-width: 0;
+    width: auto;
   }
 
-  .emoji-input {
-    width: 36px;
-    flex-shrink: 0;
+  .device-name-row input.emoji-input {
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    padding: 0;
     text-align: center;
+    font-size: 14px;
+    line-height: 28px;
+    border-radius: 50%;
+    box-sizing: border-box;
   }
 
   .error {

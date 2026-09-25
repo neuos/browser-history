@@ -253,17 +253,6 @@
                     </svg>
                   {/if}
                 </div>
-                <div
-                  class="device-indicator"
-                  title={deviceMap.get(entry.deviceId)?.deviceName || 'Unknown device'}
-                  style={deviceMap.get(entry.deviceId)?.emoji
-                    ? undefined
-                    : `background-color: ${colorForDeviceId(entry.deviceId)};`}
-                >
-                  {#if deviceMap.get(entry.deviceId)?.emoji}
-                    <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji}</span>
-                  {/if}
-                </div>
                 <div class="entry-info">
                   <div
                     class="history-item-title"
@@ -282,6 +271,17 @@
                 </div>
                 <div class="history-item-time">
                   {formatDate(entry.timestamp)}
+                </div>
+                <div
+                  class="device-indicator"
+                  title={deviceMap.get(entry.deviceId)?.deviceName || 'Unknown device'}
+                  style={deviceMap.get(entry.deviceId)?.emoji
+                    ? undefined
+                    : `background-color: ${colorForDeviceId(entry.deviceId)};`}
+                >
+                  {#if deviceMap.get(entry.deviceId)?.emoji}
+                    <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji}</span>
+                  {/if}
                 </div>
               </div>
             </a>
@@ -487,9 +487,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-left: -4px;
-    margin-right: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(0, 0, 0, 0.1);
     box-sizing: border-box;
   }
 
