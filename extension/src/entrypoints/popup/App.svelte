@@ -4,7 +4,7 @@
   import { detectSystemTheme, listenForThemeChanges } from '@/lib/theme';
   import { onMount, onDestroy } from 'svelte';
   import type { DeviceInfo, SyncStatus } from '@/lib/sync/types';
-  import { colorForDeviceId } from '@/lib/deviceColor';
+  import { emojiForDeviceId } from '@/lib/deviceColor';
 
   let showSyncStatus = false;
   let isConfigured = false;
@@ -16,9 +16,9 @@
   // Reactive status for UI
   $: statusColor = !isConfigured ? '#6c757d' : (!syncStatus?.isConnected ? '#ffc107' : '#28a745');
   $: statusText = !isConfigured ? 'Not Configured' : (!syncStatus?.isConnected ? 'Disconnected' : 'Connected');
-  // Preview swatch for the emoji field: the same deterministic color the history list falls
-  // back to for this device when no emoji has been picked, so the field previews the real result.
-  $: emojiSwatchColor = deviceInfo?.deviceId ? colorForDeviceId(deviceInfo.deviceId) : '#ccc';
+  // Preview for the emoji field: the same deterministic fallback emoji the history list uses
+  // for this device when no emoji has been picked, so the field previews the real result.
+  $: emojiFallback = deviceInfo?.deviceId ? emojiForDeviceId(deviceInfo.deviceId) : '⚪';
   
   // Setup form variables
   let isSetupMode = false;
@@ -260,8 +260,8 @@
                 class="emoji-input"
                 type="text"
                 bind:value={deviceEmoji}
-                style={deviceEmoji ? undefined : `background-color: ${emojiSwatchColor};`}
-                title="Emoji shown next to this device's history entries. Leave empty to use a color swatch instead."
+                placeholder={emojiFallback}
+                title="Emoji shown next to this device's history entries. Leave empty to use the fallback shown here. Open your OS emoji picker to type one: Ctrl+Cmd+Space on Mac, Win+. on Windows."
                 disabled={isSetupLoading}
               />
             </div>

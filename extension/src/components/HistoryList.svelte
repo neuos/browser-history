@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
   import { Debouncer as Debouncer } from "@/lib/Debouncer";
-  import { colorForDeviceId } from "@/lib/deviceColor";
+  import { emojiForDeviceId } from "@/lib/deviceColor";
 
   let history: HistoryEntry[] = [];
   let isLoading = true;
@@ -275,13 +275,8 @@
                 <div
                   class="device-indicator"
                   title={deviceMap.get(entry.deviceId)?.deviceName || 'Unknown device'}
-                  style={deviceMap.get(entry.deviceId)?.emoji
-                    ? undefined
-                    : `background-color: ${colorForDeviceId(entry.deviceId)};`}
                 >
-                  {#if deviceMap.get(entry.deviceId)?.emoji}
-                    <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji}</span>
-                  {/if}
+                  <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji || emojiForDeviceId(entry.deviceId)}</span>
                 </div>
               </div>
             </a>
@@ -481,18 +476,13 @@
 
   .device-indicator {
     flex-shrink: 0;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    box-sizing: border-box;
   }
 
   .device-emoji {
-    font-size: 10px;
+    font-size: 12px;
     line-height: 1;
   }
 
