@@ -90,6 +90,16 @@ export class SyncClient {
         console.log('SyncClient: Migrating pre-tokenIssuedAt device info, forcing refresh on next sync')
         this.deviceInfo.tokenIssuedAt = 0
       }
+
+      // Reconcile the local capture-time device ID (initializeDeviceID(), run earlier at
+      // startup before config is loaded) with the real, server-registered one on every load -
+      // not just inside registerDevice(). Without this, a device that's already configured
+      // (valid token, no re-registration needed) never gets this reconciliation on a normal
+      // restart, so every new HistoryNode keeps being tagged with whatever ID
+      // initializeDeviceID() happened to generate, permanently drifting from deviceInfo.deviceId.
+      if (this.deviceInfo) {
+        await setDeviceId(this.deviceInfo.deviceId)
+      }
       
       console.log('SyncClient: Loaded config:', !!this.config, 'deviceInfo:', !!this.deviceInfo, 'lastDownload:', this.lastDownloadTimestamp)
       
