@@ -2,7 +2,7 @@ export class DatabaseSingleton {
     private static instance: DatabaseSingleton;
     private db: IDBDatabase | undefined;
     private readonly DB_NAME = 'browser-history-db';
-    private readonly DB_VERSION = 3; // Bumped from 2 to add the faviconBlobs store
+    private readonly DB_VERSION = 4; // Bumped from 3 to add the deviceMetadata store
     private schemaBuilders: Array<(db: IDBDatabase) => void> = [];
 
 

@@ -8,7 +8,7 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
   protected readonly DB_NAME = 'browser-history-db';
   // Unused - DatabaseSingleton owns the actual version passed to indexedDB.open(); kept in sync
   // here only so a reader doesn't see a stale number if they check this file instead of that one.
-  protected readonly DB_VERSION = 3;
+  protected readonly DB_VERSION = 4;
   protected abstract readonly STORE_NAME: string;
   protected db: IDBDatabase | undefined;
 

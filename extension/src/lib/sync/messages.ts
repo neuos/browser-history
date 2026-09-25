@@ -35,6 +35,21 @@ export interface PerformFullSyncMessage extends SyncMessage {
   type: 'PERFORM_FULL_SYNC'
 }
 
+export interface GetSyncConfigMessage extends SyncMessage {
+  type: 'GET_SYNC_CONFIG'
+}
+
+export interface SetDeviceEmojiMessage extends SyncMessage {
+  type: 'SET_DEVICE_EMOJI'
+  payload: {
+    emoji: string | undefined
+  }
+}
+
+export interface GetAllDevicesMessage extends SyncMessage {
+  type: 'GET_ALL_DEVICES'
+}
+
 // Messages from background to popup
 export interface SyncStatusResponse extends SyncMessage {
   type: 'SYNC_STATUS_RESPONSE'
@@ -96,15 +111,43 @@ export interface HistoryUpdatedMessage extends SyncMessage {
   }
 }
 
-export type PopupToBackgroundMessage = 
+export interface GetSyncConfigResponse extends SyncMessage {
+  type: 'GET_SYNC_CONFIG_RESPONSE'
+  payload: {
+    serverUrl: string
+    deviceName: string
+    sharedSecret: string
+    emoji?: string
+  } | null
+}
+
+export interface SetDeviceEmojiResponse extends SyncMessage {
+  type: 'SET_DEVICE_EMOJI_RESPONSE'
+  payload: {
+    success: boolean
+    error?: string
+  }
+}
+
+export interface GetAllDevicesResponse extends SyncMessage {
+  type: 'GET_ALL_DEVICES_RESPONSE'
+  payload: {
+    devices: Array<{ deviceId: string; deviceName: string; emoji?: string }>
+  }
+}
+
+export type PopupToBackgroundMessage =
   | SetupSyncMessage
   | GetSyncStatusMessage
   | GetDeviceInfoMessage
   | IsConfiguredMessage
   | ClearConfigurationMessage
   | PerformFullSyncMessage
+  | GetSyncConfigMessage
+  | SetDeviceEmojiMessage
+  | GetAllDevicesMessage
 
-export type BackgroundToPopupMessage = 
+export type BackgroundToPopupMessage =
   | SyncStatusResponse
   | DeviceInfoResponse
   | IsConfiguredResponse
@@ -112,3 +155,6 @@ export type BackgroundToPopupMessage =
   | ClearConfigurationResponse
   | PerformFullSyncResponse
   | HistoryUpdatedMessage
+  | GetSyncConfigResponse
+  | SetDeviceEmojiResponse
+  | GetAllDevicesResponse

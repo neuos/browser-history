@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
   import { Debouncer as Debouncer } from "@/lib/Debouncer";
+  import { colorForDeviceId } from "@/lib/deviceColor";
 
   let history: HistoryEntry[] = [];
   let isLoading = true;
@@ -9,8 +10,22 @@
   let searchTerm = "";
   let startDate = "";
   let endDate = "";
+  let deviceMap = new Map<string, { deviceName: string; emoji?: string }>();
 
   const loadingDebouncer = new Debouncer(30, () => isLoading = true, () => isLoading = false);
+
+  async function loadDevices() {
+    try {
+      const response = await browser.runtime.sendMessage({ type: 'GET_ALL_DEVICES' });
+      if (response?.type === 'GET_ALL_DEVICES_RESPONSE') {
+        deviceMap = new Map(
+          response.payload.devices.map((d: { deviceId: string; deviceName: string; emoji?: string }) => [d.deviceId, d])
+        );
+      }
+    } catch (e) {
+      console.warn('HistoryList: Failed to load device list:', e);
+    }
+  }
 
   // Request history data from background script instead of creating repositories here
   async function loadHistory(): Promise<HistoryEntry[]> {
@@ -123,13 +138,16 @@
 
   onMount(() => {
     loadHistoryData();
-    
+    loadDevices();
+
     // Listen for history update messages from background script
     const messageListener = (message: any) => {
       if (message.type === 'HISTORY_UPDATED') {
         console.log('HistoryList: Received HISTORY_UPDATED message, reason:', message.payload?.reason);
         // Reload history data when background script notifies us of updates
         loadHistoryData();
+        // A device could have just been (re)configured or picked a new emoji - keep the map fresh
+        loadDevices();
       }
     };
     
@@ -233,6 +251,17 @@
                         d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
                       />
                     </svg>
+                  {/if}
+                </div>
+                <div
+                  class="device-indicator"
+                  title={deviceMap.get(entry.deviceId)?.deviceName || 'Unknown device'}
+                  style={deviceMap.get(entry.deviceId)?.emoji
+                    ? undefined
+                    : `background-color: ${colorForDeviceId(entry.deviceId)};`}
+                >
+                  {#if deviceMap.get(entry.deviceId)?.emoji}
+                    <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji}</span>
                   {/if}
                 </div>
                 <div class="entry-info">
@@ -450,7 +479,26 @@
     color: #5f6368;
   }
 
-  .entry-info { 
+  .device-indicator {
+    flex-shrink: 0;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: -4px;
+    margin-right: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-sizing: border-box;
+  }
+
+  .device-emoji {
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .entry-info {
     flex-grow: 1;
     min-width: 0; /* Important for text-overflow to work in flex children */
   }

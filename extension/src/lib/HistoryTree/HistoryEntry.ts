@@ -7,6 +7,7 @@ interface HistoryEntry {
     timestamp: Date;
     parentId: HistoryNodeId | null;
     favicon: string | null;
+    deviceId: string;
     metadata?: PageMetadata;
     children?: HistoryEntry[];
 }

@@ -21,6 +21,7 @@
   let serverUrl = 'http://localhost:5165';
   let deviceName = '';
   let sharedSecret = '';
+  let deviceEmoji = '';
   let isSetupLoading = false;
   let setupError = '';
 
@@ -144,8 +145,9 @@
       setupError = '';
       
       await popupSyncService.setupSync(serverUrl, deviceName, sharedSecret);
+      await popupSyncService.setDeviceEmoji(deviceEmoji || undefined);
       await updateSyncStatus();
-      
+
       isSetupMode = false;
       showSyncStatus = false; // Close the panel after successful setup
       
@@ -179,7 +181,23 @@
     }
   }
   
-  function toggleSetupMode() {
+  async function toggleSetupMode() {
+    // Entering setup mode on an already-configured device: pre-fill the form with the
+    // real saved config instead of leaving it at its stale/default in-memory values, so
+    // "Configure" edits the existing setup rather than silently resetting it.
+    if (!isSetupMode && isConfigured) {
+      try {
+        const config = await popupSyncService.getSyncConfig();
+        if (config) {
+          serverUrl = config.serverUrl;
+          deviceName = config.deviceName;
+          sharedSecret = config.sharedSecret;
+          deviceEmoji = config.emoji || '';
+        }
+      } catch (error) {
+        console.error('Failed to load current sync config:', error);
+      }
+    }
     isSetupMode = !isSetupMode;
     setupError = '';
   }
@@ -226,13 +244,23 @@
 
           <div class="form-group">
             <label for="deviceName">Device Name:</label>
-            <input
-              id="deviceName"
-              type="text"
-              bind:value={deviceName}
-              placeholder="My Laptop"
-              disabled={isSetupLoading}
-            />
+            <div class="device-name-row">
+              <input
+                id="deviceName"
+                type="text"
+                bind:value={deviceName}
+                placeholder="My Laptop"
+                disabled={isSetupLoading}
+              />
+              <input
+                class="emoji-input"
+                type="text"
+                bind:value={deviceEmoji}
+                placeholder="🙂"
+                title="Emoji shown next to this device's history entries"
+                disabled={isSetupLoading}
+              />
+            </div>
           </div>
 
           <div class="form-group">
@@ -314,7 +342,7 @@
             class="secondary-btn"
             on:click={toggleSetupMode}
           >
-            Reconfigure
+            Configure
           </button>
           
           <button 
@@ -500,6 +528,21 @@
   .form-group input:disabled {
     background-color: #f5f5f5;
     color: #666;
+  }
+
+  .device-name-row {
+    display: flex;
+    gap: 6px;
+  }
+
+  .device-name-row input[type="text"]:not(.emoji-input) {
+    flex: 1;
+  }
+
+  .emoji-input {
+    width: 36px;
+    flex-shrink: 0;
+    text-align: center;
   }
 
   .error {

@@ -13,5 +13,11 @@ public enum SyncEntityType
     /// <summary>
     /// Page metadata and content
     /// </summary>
-    Page = 2
+    Page = 2,
+
+    /// <summary>
+    /// Per-device display metadata (name, emoji) broadcast so other devices can show it -
+    /// opaque to the server like every other entity type, just relayed through the event log.
+    /// </summary>
+    Device = 3
 }

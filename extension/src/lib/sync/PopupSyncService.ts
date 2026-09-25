@@ -1,12 +1,15 @@
-import type { 
-  PopupToBackgroundMessage, 
+import type {
+  PopupToBackgroundMessage,
   BackgroundToPopupMessage,
   SyncStatusResponse,
   DeviceInfoResponse,
   IsConfiguredResponse,
   SetupSyncResponse,
   ClearConfigurationResponse,
-  PerformFullSyncResponse
+  PerformFullSyncResponse,
+  GetSyncConfigResponse,
+  SetDeviceEmojiResponse,
+  GetAllDevicesResponse
 } from './messages'
 import type { DeviceInfo, SyncStatus } from './types'
 
@@ -97,6 +100,33 @@ export class PopupSyncService {
     if (!response.payload.success) {
       throw new Error('Failed to clear configuration')
     }
+  }
+
+  async getSyncConfig(): Promise<{ serverUrl: string; deviceName: string; sharedSecret: string; emoji?: string } | null> {
+    console.log('PopupSyncService: Getting sync config via background script')
+    const response = await this.sendMessage<GetSyncConfigResponse>({
+      type: 'GET_SYNC_CONFIG'
+    })
+    return response.payload
+  }
+
+  async setDeviceEmoji(emoji: string | undefined): Promise<void> {
+    console.log('PopupSyncService: Setting device emoji via background script')
+    const response = await this.sendMessage<SetDeviceEmojiResponse>({
+      type: 'SET_DEVICE_EMOJI',
+      payload: { emoji }
+    })
+    if (!response.payload.success) {
+      throw new Error(response.payload.error || 'Failed to set device emoji')
+    }
+  }
+
+  async getAllKnownDevices(): Promise<Array<{ deviceId: string; deviceName: string; emoji?: string }>> {
+    console.log('PopupSyncService: Getting all known devices via background script')
+    const response = await this.sendMessage<GetAllDevicesResponse>({
+      type: 'GET_ALL_DEVICES'
+    })
+    return response.payload.devices
   }
 
   async performFullSync(): Promise<void> {

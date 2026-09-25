@@ -10,7 +10,7 @@ export interface SyncEvent {
   id: string
   timestamp: number
   eventType: 'CREATE' | 'UPDATE' | 'DELETE'
-  entityType: 'history' | 'page'
+  entityType: 'history' | 'page' | 'device'
   entityId: string
   data: any
   checksum?: string

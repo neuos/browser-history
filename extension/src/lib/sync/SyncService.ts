@@ -211,6 +211,31 @@ export class SyncService {
     console.log('SyncService: Resetting sync timestamp')
     await this.syncClient.resetLastDownloadTimestamp()
   }
+
+  /**
+   * Current config plus this device's own emoji (if set) - what the popup's "Configure" form
+   * pre-fills from, so reopening it never shows an empty/default form for an already-configured
+   * device.
+   */
+  async getSyncConfig(): Promise<{ serverUrl: string; deviceName: string; sharedSecret: string; emoji?: string } | null> {
+    const config = this.syncClient.getConfig()
+    if (!config) return null
+    const ownMetadata = await this.syncClient.getOwnDeviceMetadata()
+    return {
+      serverUrl: config.serverUrl,
+      deviceName: config.deviceName,
+      sharedSecret: config.sharedSecret,
+      emoji: ownMetadata?.emoji,
+    }
+  }
+
+  async setDeviceEmoji(emoji: string | undefined): Promise<void> {
+    await this.syncClient.broadcastDeviceMetadata(emoji)
+  }
+
+  async getAllKnownDevices(): Promise<Array<{ deviceId: string; deviceName: string; emoji?: string }>> {
+    return await this.syncClient.getAllKnownDevices()
+  }
 }
 
 // Factory function to create sync service with callbacks

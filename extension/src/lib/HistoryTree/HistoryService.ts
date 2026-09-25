@@ -346,6 +346,7 @@ export class HistoryService {
                 favicon: await this.resolveFaviconForDisplay(page),
                 timestamp: node.timestamp,
                 parentId: node.navigationSourceID || null,
+                deviceId: node.deviceId,
                 metadata: page?.metadata || {},
                 children: [] // Populate children if needed
             };

@@ -2,8 +2,11 @@ import type { SyncConfig, DeviceInfo, SyncEvent, SyncStatus } from './types'
 import { HistoryRepositoryIndexedDB } from '@/lib/HistoryTree/HistoryRepositoryIndexedDB'
 import { PageRepositoryIndexedDB } from '@/lib/HistoryTree/PageRepositoryIndexedDB'
 import { FaviconBlobRepositoryIndexedDB } from '@/lib/HistoryTree/FaviconBlobRepositoryIndexedDB'
+import { DeviceMetadataRepositoryIndexedDB } from '@/lib/HistoryTree/DeviceMetadataRepositoryIndexedDB'
+import { DeviceMetadata } from '@/lib/HistoryTree/DeviceMetadata'
 import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
 import { Page } from '@/lib/HistoryTree/HistoryNode'
+import { setDeviceId } from '@/lib/HistoryTree/DeviceID'
 
 export interface SyncClientCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
@@ -29,6 +32,7 @@ export class SyncClient {
   private historyRepository = new HistoryRepositoryIndexedDB()
   private pageRepository = new PageRepositoryIndexedDB()
   private faviconBlobRepository = new FaviconBlobRepositoryIndexedDB()
+  private deviceMetadataRepository = new DeviceMetadataRepositoryIndexedDB()
   // Hashes confirmed uploaded this session, so a page revisited/updated repeatedly doesn't
   // re-upload the same favicon bytes on every single sync event - the server is idempotent
   // either way, this just avoids the redundant network round trip.
@@ -150,6 +154,17 @@ export class SyncClient {
 
       await this.saveDeviceInfo(deviceInfo)
       await this.saveConfig({ serverUrl, deviceName, sharedSecret, token: data.token })
+
+      // Reconcile the locally-generated device ID with the server-assigned one, so HistoryNodes
+      // this device captures from now on carry the same identity the server (and other devices)
+      // know it by - see DeviceID.ts for why this matters.
+      await setDeviceId(deviceInfo.deviceId)
+
+      // Announce this device's name (and its emoji, if one was already chosen - this path also
+      // runs on re-registration after a fully-expired token, which must not silently clear it)
+      // so other devices can show a tooltip even before/without an emoji being picked.
+      const existing = await this.deviceMetadataRepository.get(deviceInfo.deviceId)
+      await this.broadcastDeviceMetadata(existing?.emoji)
 
       console.log('Device registered successfully:', deviceInfo.deviceId)
       return deviceInfo
@@ -684,6 +699,8 @@ export class SyncClient {
         await this.applyHistorySyncEvent(event)
       } else if (event.entityType === 'page') {
         await this.applyPageSyncEvent(event)
+      } else if (event.entityType === 'device') {
+        await this.applyDeviceSyncEvent(event)
       } else {
         throw new Error(`Unknown entity type: ${event.entityType}`)
       }
@@ -808,6 +825,52 @@ export class SyncClient {
         throw addError
       }
     }
+  }
+
+  private async applyDeviceSyncEvent(event: SyncEvent): Promise<void> {
+    const deviceData = event.data
+    if (event.eventType === 'CREATE' || event.eventType === 'UPDATE') {
+      await this.deviceMetadataRepository.put({
+        deviceId: deviceData.deviceId,
+        deviceName: deviceData.deviceName,
+        emoji: deviceData.emoji,
+      })
+    }
+  }
+
+  /**
+   * Broadcasts this device's own name and emoji so other devices can show them next to entries
+   * this device syncs. Also stores it locally immediately, so this device's own history list
+   * reflects a just-picked emoji without waiting on a sync round trip.
+   */
+  async broadcastDeviceMetadata(emoji?: string): Promise<void> {
+    if (!this.config || !this.deviceInfo) return
+
+    const metadata: DeviceMetadata = {
+      deviceId: this.deviceInfo.deviceId,
+      deviceName: this.config.deviceName,
+      emoji,
+    }
+    await this.deviceMetadataRepository.put(metadata)
+
+    const event: SyncEvent = {
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      eventType: 'UPDATE',
+      entityType: 'device',
+      entityId: this.deviceInfo.deviceId,
+      data: metadata,
+    }
+    await this.submitSyncEvent(event)
+  }
+
+  async getOwnDeviceMetadata(): Promise<DeviceMetadata | undefined> {
+    if (!this.deviceInfo) return undefined
+    return this.deviceMetadataRepository.get(this.deviceInfo.deviceId)
+  }
+
+  async getAllKnownDevices(): Promise<DeviceMetadata[]> {
+    return this.deviceMetadataRepository.getAll()
   }
 
   // Status

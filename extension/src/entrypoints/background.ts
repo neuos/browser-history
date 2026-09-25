@@ -307,6 +307,64 @@ export default defineBackground(() => {
         return true // Keep message channel open for async response
       }
 
+      if (message.type === 'GET_SYNC_CONFIG') {
+        console.log('Background: Handling GET_SYNC_CONFIG message')
+        syncService.getSyncConfig()
+          .then(config => {
+            sendResponse({
+              type: 'GET_SYNC_CONFIG_RESPONSE',
+              payload: config
+            })
+          })
+          .catch(error => {
+            console.error('Background: getSyncConfig failed:', error)
+            sendResponse({
+              type: 'GET_SYNC_CONFIG_RESPONSE',
+              payload: null
+            })
+          })
+        return true // Keep message channel open for async response
+      }
+
+      if (message.type === 'SET_DEVICE_EMOJI') {
+        console.log('Background: Handling SET_DEVICE_EMOJI message')
+        const { emoji } = message.payload
+        syncService.setDeviceEmoji(emoji)
+          .then(() => {
+            sendResponse({
+              type: 'SET_DEVICE_EMOJI_RESPONSE',
+              payload: { success: true }
+            })
+          })
+          .catch(error => {
+            console.error('Background: setDeviceEmoji failed:', error)
+            sendResponse({
+              type: 'SET_DEVICE_EMOJI_RESPONSE',
+              payload: { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+            })
+          })
+        return true // Keep message channel open for async response
+      }
+
+      if (message.type === 'GET_ALL_DEVICES') {
+        console.log('Background: Handling GET_ALL_DEVICES message')
+        syncService.getAllKnownDevices()
+          .then(devices => {
+            sendResponse({
+              type: 'GET_ALL_DEVICES_RESPONSE',
+              payload: { devices }
+            })
+          })
+          .catch(error => {
+            console.error('Background: getAllKnownDevices failed:', error)
+            sendResponse({
+              type: 'GET_ALL_DEVICES_RESPONSE',
+              payload: { devices: [] }
+            })
+          })
+        return true // Keep message channel open for async response
+      }
+
       if (message.type === 'GET_SYNC_STATUS') {
         console.log('Background: Handling GET_SYNC_STATUS message')
         const status = syncService.getStatus()
