@@ -22,4 +22,9 @@ export interface IPageRepository {
      * @returns A Promise that resolves to an array of Page objects.
      */
     getAll(): Promise<Page[]>;
+
+    /**
+     * Removes every page from the repository.
+     */
+    clear(): Promise<void>;
 }

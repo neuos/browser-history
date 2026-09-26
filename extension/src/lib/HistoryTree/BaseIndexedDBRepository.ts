@@ -144,6 +144,28 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
   }
 
   /**
+   * Removes every entity from the store
+   */
+  protected async clearAllItems(): Promise<void> {
+    const db = await this.getDB();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(this.STORE_NAME);
+
+      const request = store.clear();
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+
+      transaction.oncomplete = () => {
+        resolve();
+      };
+    });
+  }
+
+  /**
    * Gets items by an index value
    */
   protected async getItemsByIndex(indexName: string, value: any): Promise<T[]> {

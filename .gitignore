@@ -10,12 +10,17 @@ lerna-debug.log*
 # Dependencies
 node_modules
 
+# Local secrets (AMO signing credentials, etc.) - never committed
+.env
+.env.*
+
 # Extension build output
 .output
 stats.html
 stats-*.json
 .wxt
 web-ext.config.ts
+web-ext-artifacts
 
 # Generated extension icons (built from SVG)
 extension/public/icon/*.png

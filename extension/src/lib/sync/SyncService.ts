@@ -236,6 +236,10 @@ export class SyncService {
   async getAllKnownDevices(): Promise<Array<{ deviceId: string; deviceName: string; emoji?: string }>> {
     return await this.syncClient.getAllKnownDevices()
   }
+
+  async clearLocalCacheAndResync(): Promise<{ eventsApplied: number }> {
+    return await this.syncClient.clearLocalCacheAndResync()
+  }
 }
 
 // Factory function to create sync service with callbacks

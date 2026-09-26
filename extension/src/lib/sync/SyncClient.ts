@@ -954,4 +954,59 @@ export class SyncClient {
     console.log('SyncClient: Resetting lastDownloadTimestamp to 0')
     await this.saveLastDownloadTimestamp(0)
   }
+
+  /**
+   * Wipes the local history/page cache and redownloads the complete event log from the server
+   * from scratch, reapplying every event fresh. Unlike the regular incremental download path
+   * (downloadEventsFromOtherDevices, which passes exclude_device=true since it only wants events
+   * this device hasn't already captured itself), this deliberately fetches this device's own
+   * events too (exclude_device=false) - otherwise a clear would permanently lose this device's
+   * own history. Useful any time local state and the server's event log have drifted (e.g. a
+   * historical client-side bug baked bad data into the local cache that's since been corrected
+   * server-side) - a plain incremental sync would never revisit already-downloaded events, so a
+   * full rebuild from the source of truth is the only way to pick up a server-side data fix.
+   */
+  async clearLocalCacheAndResync(): Promise<{ eventsApplied: number }> {
+    if (!this.isLoaded) {
+      await this.loadConfig()
+    }
+    if (!this.config || !this.deviceInfo) {
+      throw new Error('Sync is not configured')
+    }
+
+    await this.historyRepository.clear()
+    await this.pageRepository.clear()
+
+    const url = `${this.config.serverUrl}/api/v1/sync/events?since=0&exclude_device=false`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${this.deviceInfo.token}`,
+        'Content-Type': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Failed to download full history: ${response.status} ${errorText}`)
+    }
+
+    const result = await response.json()
+    const events: SyncEvent[] = result.events || []
+    const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
+    for (const event of orderedEvents) {
+      await this.applySyncEvent(event)
+    }
+
+    if (events.length > 0) {
+      const newestTimestamp = Math.max(...events.map(e => e.timestamp))
+      await this.saveLastDownloadTimestamp(newestTimestamp)
+    }
+
+    if (this.callbacks.onSyncEventsApplied) {
+      this.callbacks.onSyncEventsApplied(events.length)
+    }
+
+    return { eventsApplied: events.length }
+  }
 }

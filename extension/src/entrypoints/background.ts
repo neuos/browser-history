@@ -365,6 +365,26 @@ export default defineBackground(() => {
         return true // Keep message channel open for async response
       }
 
+      if (message.type === 'CLEAR_LOCAL_CACHE_AND_RESYNC') {
+        console.log('Background: Handling CLEAR_LOCAL_CACHE_AND_RESYNC message')
+        syncService.clearLocalCacheAndResync()
+          .then(({ eventsApplied }) => {
+            sendResponse({
+              type: 'CLEAR_LOCAL_CACHE_AND_RESYNC_RESPONSE',
+              payload: { success: true, eventsApplied }
+            })
+            broadcastHistoryUpdated('manual_refresh')
+          })
+          .catch(error => {
+            console.error('Background: clearLocalCacheAndResync failed:', error)
+            sendResponse({
+              type: 'CLEAR_LOCAL_CACHE_AND_RESYNC_RESPONSE',
+              payload: { success: false, error: error instanceof Error ? error.message : 'Resync failed' }
+            })
+          })
+        return true // Keep message channel open for async response
+      }
+
       if (message.type === 'GET_SYNC_STATUS') {
         console.log('Background: Handling GET_SYNC_STATUS message')
         const status = syncService.getStatus()

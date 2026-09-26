@@ -171,6 +171,23 @@
     }
   }
   
+  let migrateResult = '';
+
+  // Wipes the local history/page cache and redownloads the complete event log fresh from the
+  // server - the way to pick up a server-side data correction (or just recover from any local
+  // drift) without needing devtools access, which Firefox for Android doesn't offer at all.
+  async function clearLocalCacheAndResync() {
+    if (!confirm('Clear local history cache and redownload everything from the server? This can take a moment.')) {
+      return;
+    }
+    try {
+      const { eventsApplied } = await popupSyncService.clearLocalCacheAndResync();
+      migrateResult = `Resynced - applied ${eventsApplied} events from the server.`;
+    } catch (error) {
+      migrateResult = `Failed: ${error instanceof Error ? error.message : 'unknown error'}`;
+    }
+  }
+
   async function clearSync() {
     if (confirm('This will remove sync configuration and disconnect from the server. Continue?')) {
       // Stop the refresh interval
@@ -349,13 +366,25 @@
             Configure
           </button>
           
-          <button 
+          <button
+            class="secondary-btn"
+            on:click={clearLocalCacheAndResync}
+            title="Clear local history cache and redownload everything fresh from the server"
+          >
+            Re-sync From Server
+          </button>
+
+          <button
             class="danger-btn"
             on:click={clearSync}
           >
             Disconnect
           </button>
         </div>
+
+        {#if migrateResult}
+          <div class="migrate-result">{migrateResult}</div>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -579,6 +608,17 @@
     gap: 8px;
     margin-top: 15px;
     flex-wrap: wrap;
+  }
+
+  .migrate-result {
+    margin-top: 10px;
+    font-size: 12px;
+    color: #333;
+    background-color: #f1f3f4;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    padding: 6px 8px;
+    word-break: break-word;
   }
 
   .primary-btn, .secondary-btn, .danger-btn {

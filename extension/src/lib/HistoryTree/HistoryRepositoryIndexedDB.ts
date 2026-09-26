@@ -58,6 +58,10 @@ export class HistoryRepositoryIndexedDB
     return this.getAllItems();
   }
 
+  async clear(): Promise<void> {
+    return this.clearAllItems();
+  }
+
   // Additional useful methods for tree navigation
   async getChildNodes(parentId: HistoryNodeId): Promise<HistoryNode[]> {
     return this.getItemsByIndex('navigationSourceID', parentId);

@@ -50,6 +50,10 @@ export interface GetAllDevicesMessage extends SyncMessage {
   type: 'GET_ALL_DEVICES'
 }
 
+export interface ClearLocalCacheAndResyncMessage extends SyncMessage {
+  type: 'CLEAR_LOCAL_CACHE_AND_RESYNC'
+}
+
 // Messages from background to popup
 export interface SyncStatusResponse extends SyncMessage {
   type: 'SYNC_STATUS_RESPONSE'
@@ -136,6 +140,15 @@ export interface GetAllDevicesResponse extends SyncMessage {
   }
 }
 
+export interface ClearLocalCacheAndResyncResponse extends SyncMessage {
+  type: 'CLEAR_LOCAL_CACHE_AND_RESYNC_RESPONSE'
+  payload: {
+    success: boolean
+    eventsApplied?: number
+    error?: string
+  }
+}
+
 export type PopupToBackgroundMessage =
   | SetupSyncMessage
   | GetSyncStatusMessage
@@ -146,6 +159,7 @@ export type PopupToBackgroundMessage =
   | GetSyncConfigMessage
   | SetDeviceEmojiMessage
   | GetAllDevicesMessage
+  | ClearLocalCacheAndResyncMessage
 
 export type BackgroundToPopupMessage =
   | SyncStatusResponse
@@ -158,3 +172,4 @@ export type BackgroundToPopupMessage =
   | GetSyncConfigResponse
   | SetDeviceEmojiResponse
   | GetAllDevicesResponse
+  | ClearLocalCacheAndResyncResponse

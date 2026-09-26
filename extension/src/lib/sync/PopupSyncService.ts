@@ -9,7 +9,8 @@ import type {
   PerformFullSyncResponse,
   GetSyncConfigResponse,
   SetDeviceEmojiResponse,
-  GetAllDevicesResponse
+  GetAllDevicesResponse,
+  ClearLocalCacheAndResyncResponse
 } from './messages'
 import type { DeviceInfo, SyncStatus } from './types'
 
@@ -127,6 +128,17 @@ export class PopupSyncService {
       type: 'GET_ALL_DEVICES'
     })
     return response.payload.devices
+  }
+
+  async clearLocalCacheAndResync(): Promise<{ eventsApplied: number }> {
+    console.log('PopupSyncService: Clearing local cache and resyncing via background script')
+    const response = await this.sendMessage<ClearLocalCacheAndResyncResponse>({
+      type: 'CLEAR_LOCAL_CACHE_AND_RESYNC'
+    })
+    if (!response.payload.success) {
+      throw new Error(response.payload.error || 'Resync failed')
+    }
+    return { eventsApplied: response.payload.eventsApplied || 0 }
   }
 
   async performFullSync(): Promise<void> {

@@ -46,6 +46,10 @@ export class PageRepositoryIndexedDB
   async getAll(): Promise<Page[]> {
     return this.getAllItems();
   }
+
+  async clear(): Promise<void> {
+    return this.clearAllItems();
+  }
 }
 
 function createPageSchema(db: IDBDatabase): void {
