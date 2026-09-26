@@ -1,4 +1,4 @@
-import { guid } from "../guid";
+import { UuidString, UuidBytes } from "../guid";
 import { getDeviceId } from "./DeviceID";
 
 export type PageMetadata = {
@@ -24,18 +24,21 @@ export class Page {
 
 export class HistoryNode {
     public timestamp: Date = new Date();
-    public deviceId: guid = getDeviceId(); // Device ID for multi-device support
-    public id: guid; // Unique identifier for the history node
+    // Raw bytes, not text - this is the actual, hard-learned lesson from a same-device GUID in
+    // two different letter cases silently comparing unequal everywhere it was a plain string.
+    // See guid.ts and DeviceID.ts.
+    public deviceId: UuidBytes = getDeviceId();
+    public id: HistoryNodeId; // Unique identifier for the history node
 
     constructor(
         public tabId: number,
         public url:string,
         public navigationSourceID: HistoryNodeId | null = null, // ID of the node that led to this navigation
     ) {
-        this.id = crypto.randomUUID(); // Each node has a unique ID
+        this.id = crypto.randomUUID() as UuidString; // Each node has a unique ID
     }
 }
 
-export type HistoryNodeId = guid;
+export type HistoryNodeId = UuidString;
 
 export type Favicon = string; // URL of the favicon image

@@ -1,6 +1,7 @@
 import { SyncClient } from './SyncClient'
 import type { SyncEvent, DeviceInfo } from './types'
 import type { HistoryNode, Page } from '@/lib/HistoryTree/HistoryNode'
+import { formatGuid } from '@/lib/guid'
 
 export interface SyncServiceCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
@@ -75,7 +76,10 @@ export class SyncService {
       entityId: node.id,
       data: {
         id: node.id,
-        deviceId: node.deviceId,
+        // Converted back to a string here - this is embedded directly into the outgoing JSON
+        // event body, and JSON has no binary type. node.deviceId itself stays raw bytes
+        // everywhere else (IndexedDB, in-memory comparisons) - see guid.ts.
+        deviceId: formatGuid(node.deviceId),
         url: node.url,
         tabId: node.tabId,
         timestamp: node.timestamp.getTime(),
@@ -100,7 +104,7 @@ export class SyncService {
       entityId: node.id,
       data: {
         id: node.id,
-        deviceId: node.deviceId,
+        deviceId: formatGuid(node.deviceId),
         url: node.url,
         tabId: node.tabId,
         timestamp: node.timestamp.getTime(),

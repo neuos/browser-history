@@ -4,6 +4,7 @@ import { HistorySearchOptions } from './HistorySearchOptions';
 import { IHistoryRepository } from './IHistoryRepository';
 import { IPageRepository } from './IPageRepository';
 import { IFaviconBlobRepository } from './IFaviconBlobRepository';
+import { formatGuid } from '@/lib/guid';
 
 export class HistoryService {
     private historyRepo: IHistoryRepository;
@@ -346,7 +347,10 @@ export class HistoryService {
                 favicon: await this.resolveFaviconForDisplay(page),
                 timestamp: node.timestamp,
                 parentId: node.navigationSourceID || null,
-                deviceId: node.deviceId,
+                // Converted back to a string here - this crosses the popup<->background
+                // runtime.sendMessage boundary, which (verified empirically) does not preserve a
+                // raw Uint8Array the way IndexedDB/structured-clone-native APIs do.
+                deviceId: formatGuid(node.deviceId),
                 metadata: page?.metadata || {},
                 children: [] // Populate children if needed
             };

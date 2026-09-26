@@ -7,6 +7,7 @@ import { DeviceMetadata } from '@/lib/HistoryTree/DeviceMetadata'
 import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
 import { Page } from '@/lib/HistoryTree/HistoryNode'
 import { setDeviceId } from '@/lib/HistoryTree/DeviceID'
+import { parseGuidOrZero } from '@/lib/guid'
 
 export interface SyncClientCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
@@ -743,7 +744,12 @@ export class SyncClient {
       
       // Set the synced properties with validation
       historyNode.id = historyData.id
-      historyNode.deviceId = historyData.deviceId
+      // Parsed from the wire string into raw bytes here - historyData.deviceId is whatever
+      // string the sending device embedded (could legitimately vary in letter case across
+      // devices/time - see guid.ts), and HistoryNode.deviceId is bytes everywhere else. Tolerant
+      // parse: this processes arbitrary historical events, some of which genuinely predate this
+      // field or could be malformed some other way - one bad row must not abort the whole batch.
+      historyNode.deviceId = parseGuidOrZero(historyData.deviceId)
       
       // Validate and set timestamp
       if (!historyData.timestamp) {

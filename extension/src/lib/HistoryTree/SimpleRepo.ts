@@ -1,14 +1,14 @@
 import { BaseIndexedDBRepository } from './BaseIndexedDBRepository';
-import { guid } from '../guid'
+import { UuidString } from '../guid'
 
 export class SimpleEntity {
-    constructor(public id: guid, public name: string) { }
+    constructor(public id: UuidString, public name: string) { }
 }
 
-export class SimpleRepo extends BaseIndexedDBRepository<SimpleEntity, guid> {
+export class SimpleRepo extends BaseIndexedDBRepository<SimpleEntity, UuidString> {
     protected readonly STORE_NAME = 'simple-store';
 
-    protected getEntityKey(entity: SimpleEntity): guid {
+    protected getEntityKey(entity: SimpleEntity): UuidString {
         return entity.id;
     }
 
@@ -36,7 +36,7 @@ export class SimpleRepo extends BaseIndexedDBRepository<SimpleEntity, guid> {
         await this.saveItem(entity);
     }
 
-    async get(id: guid): Promise<SimpleEntity | undefined> {
+    async get(id: UuidString): Promise<SimpleEntity | undefined> {
         return this.getItem(id);
     }
 }

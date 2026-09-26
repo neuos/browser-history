@@ -1,10 +1,15 @@
 import { DeviceMetadata } from '@/lib/HistoryTree/DeviceMetadata';
 import { IDeviceMetadataRepository } from './IDeviceMetadataRepository';
 import { BaseIndexedDBRepository } from './BaseIndexedDBRepository';
-import { normalizeGuid } from '@/lib/guid';
+import { UuidBytes, parseGuid, formatGuid } from '@/lib/guid';
 
+// DeviceMetadata itself (the public type/interface) stays deviceId: string - it's a wire-shaped
+// DTO embedded directly into outgoing sync events (JSON has no binary type), so it must remain
+// text at that boundary. Only this repository's actual IndexedDB key/stored field are raw bytes,
+// converted at the edges below - the real 128-bit value, not a text spelling of it, is what's
+// keyed on, so two differently-cased strings for the same device can never end up as two entries.
 export class DeviceMetadataRepositoryIndexedDB
-  extends BaseIndexedDBRepository<DeviceMetadata, string>
+  extends BaseIndexedDBRepository<DeviceMetadata, UuidBytes>
   implements IDeviceMetadataRepository {
 
   static readonly STORE_NAME = 'deviceMetadata';
@@ -15,19 +20,16 @@ export class DeviceMetadataRepositoryIndexedDB
     this.registerSchema(createDeviceMetadataSchema);
   }
 
-  // Normalized here (not left to callers) so the store's own key is always canonical - any two
-  // textual spellings of the same GUID (e.g. differing only in letter case) land on the same
-  // IndexedDB key instead of silently becoming two different entries.
   protected prepareForStorage(metadata: DeviceMetadata): any {
-    return { ...metadata, deviceId: normalizeGuid(metadata.deviceId) };
+    return { ...metadata, deviceId: parseGuid(metadata.deviceId) };
   }
 
   protected processFromStorage(storedItem: any): DeviceMetadata {
-    return { ...storedItem };
+    return { ...storedItem, deviceId: formatGuid(storedItem.deviceId) };
   }
 
-  protected getEntityKey(metadata: DeviceMetadata): string {
-    return normalizeGuid(metadata.deviceId);
+  protected getEntityKey(metadata: DeviceMetadata): UuidBytes {
+    return parseGuid(metadata.deviceId);
   }
 
   async put(metadata: DeviceMetadata): Promise<void> {
@@ -35,7 +37,7 @@ export class DeviceMetadataRepositoryIndexedDB
   }
 
   async get(deviceId: string): Promise<DeviceMetadata | undefined> {
-    return this.getItem(normalizeGuid(deviceId));
+    return this.getItem(parseGuid(deviceId));
   }
 
   async getAll(): Promise<DeviceMetadata[]> {
