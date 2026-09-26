@@ -977,22 +977,35 @@ export class SyncClient {
     await this.historyRepository.clear()
     await this.pageRepository.clear()
 
-    const url = `${this.config.serverUrl}/api/v1/sync/events?since=0&exclude_device=false`
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${this.deviceInfo.token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+    // The endpoint paginates (default/max take is 100/1000) - a single fetch only ever returns
+    // the oldest page starting from since=0, silently truncating everything after it. Page
+    // through with skip until the server reports no more.
+    const events: SyncEvent[] = []
+    let skip = 0
+    const take = 1000
+    while (true) {
+      const url = `${this.config.serverUrl}/api/v1/sync/events?since=0&exclude_device=false&skip=${skip}&take=${take}`
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.deviceInfo.token}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Failed to download full history: ${response.status} ${errorText}`)
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Failed to download full history: ${response.status} ${errorText}`)
+      }
+
+      const result = await response.json()
+      const pageEvents: SyncEvent[] = result.events || []
+      events.push(...pageEvents)
+
+      if (!result.hasMore || pageEvents.length === 0) break
+      skip += take
     }
 
-    const result = await response.json()
-    const events: SyncEvent[] = result.events || []
     const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
     for (const event of orderedEvents) {
       await this.applySyncEvent(event)
