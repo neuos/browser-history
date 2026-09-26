@@ -5,6 +5,7 @@
   import { onMount, onDestroy } from 'svelte';
   import type { DeviceInfo, SyncStatus } from '@/lib/sync/types';
   import { emojiForDeviceId } from '@/lib/deviceColor';
+  import { normalizeGuid } from '@/lib/guid';
 
   let showSyncStatus = false;
   let isConfigured = false;
@@ -18,7 +19,7 @@
   $: statusText = !isConfigured ? 'Not Configured' : (!syncStatus?.isConnected ? 'Disconnected' : 'Connected');
   // Preview for the emoji field: the same deterministic fallback emoji the history list uses
   // for this device when no emoji has been picked, so the field previews the real result.
-  $: emojiFallback = deviceInfo?.deviceId ? emojiForDeviceId(deviceInfo.deviceId) : '⚪';
+  $: emojiFallback = deviceInfo?.deviceId ? emojiForDeviceId(normalizeGuid(deviceInfo.deviceId)) : '⚪';
   
   // Setup form variables
   let isSetupMode = false;

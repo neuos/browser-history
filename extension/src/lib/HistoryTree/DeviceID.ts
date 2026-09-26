@@ -1,4 +1,4 @@
-import { guid } from "../guid";
+import { guid, normalizeGuid } from "../guid";
 
 // Generate on first extension run and store in persistent storage
 let deviceID: guid | undefined;
@@ -9,7 +9,7 @@ export async function initializeDeviceID() {
 
   const data = await browser.storage.local.get('deviceId');
   if (data.deviceId) {
-    deviceID = data.deviceId;
+    deviceID = normalizeGuid(data.deviceId) as guid;
     return deviceID;
   }
 
@@ -39,8 +39,11 @@ export function getDeviceId() {
  * with one UUID while syncing under a completely different, server-assigned identity.
  */
 export async function setDeviceId(id: string): Promise<void> {
-  // Cast: the server-assigned ID is always a real UUID at runtime, but arrives typed as a plain
-  // string (it's just JSON off the wire) rather than the guid template-literal type.
-  deviceID = id as guid;
-  await browser.storage.local.set({ deviceId: id });
+  // Normalized to the canonical (lowercase) form - this is the ID every future HistoryNode this
+  // device captures gets tagged with, so it must always be byte-for-byte consistent with what
+  // other devices' equality checks/lookups expect, regardless of whatever casing the server
+  // happened to send this particular time.
+  const normalized = normalizeGuid(id);
+  deviceID = normalized as guid;
+  await browser.storage.local.set({ deviceId: normalized });
 }

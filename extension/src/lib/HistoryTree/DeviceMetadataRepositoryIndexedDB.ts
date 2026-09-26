@@ -1,6 +1,7 @@
 import { DeviceMetadata } from '@/lib/HistoryTree/DeviceMetadata';
 import { IDeviceMetadataRepository } from './IDeviceMetadataRepository';
 import { BaseIndexedDBRepository } from './BaseIndexedDBRepository';
+import { normalizeGuid } from '@/lib/guid';
 
 export class DeviceMetadataRepositoryIndexedDB
   extends BaseIndexedDBRepository<DeviceMetadata, string>
@@ -14,8 +15,11 @@ export class DeviceMetadataRepositoryIndexedDB
     this.registerSchema(createDeviceMetadataSchema);
   }
 
+  // Normalized here (not left to callers) so the store's own key is always canonical - any two
+  // textual spellings of the same GUID (e.g. differing only in letter case) land on the same
+  // IndexedDB key instead of silently becoming two different entries.
   protected prepareForStorage(metadata: DeviceMetadata): any {
-    return { ...metadata };
+    return { ...metadata, deviceId: normalizeGuid(metadata.deviceId) };
   }
 
   protected processFromStorage(storedItem: any): DeviceMetadata {
@@ -23,7 +27,7 @@ export class DeviceMetadataRepositoryIndexedDB
   }
 
   protected getEntityKey(metadata: DeviceMetadata): string {
-    return metadata.deviceId;
+    return normalizeGuid(metadata.deviceId);
   }
 
   async put(metadata: DeviceMetadata): Promise<void> {
@@ -31,7 +35,7 @@ export class DeviceMetadataRepositoryIndexedDB
   }
 
   async get(deviceId: string): Promise<DeviceMetadata | undefined> {
-    return this.getItem(deviceId);
+    return this.getItem(normalizeGuid(deviceId));
   }
 
   async getAll(): Promise<DeviceMetadata[]> {

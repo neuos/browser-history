@@ -3,6 +3,7 @@
   import type { HistoryEntry } from "@/lib/HistoryTree/HistoryEntry";
   import { Debouncer as Debouncer } from "@/lib/Debouncer";
   import { emojiForDeviceId } from "@/lib/deviceColor";
+  import { normalizeGuid } from "@/lib/guid";
 
   let history: HistoryEntry[] = [];
   let isLoading = true;
@@ -19,7 +20,7 @@
       const response = await browser.runtime.sendMessage({ type: 'GET_ALL_DEVICES' });
       if (response?.type === 'GET_ALL_DEVICES_RESPONSE') {
         deviceMap = new Map(
-          response.payload.devices.map((d: { deviceId: string; deviceName: string; emoji?: string }) => [d.deviceId, d])
+          response.payload.devices.map((d: { deviceId: string; deviceName: string; emoji?: string }) => [normalizeGuid(d.deviceId), d])
         );
       }
     } catch (e) {
@@ -107,12 +108,23 @@
   // Get description from metadata (Open Graph or meta description)
   function getDescription(entry: any): string | null {
     if (!entry.metadata) return null;
-    
+
     // Priority: og:description > twitter:description > meta:description
-    return entry.metadata['og:description'] || 
-           entry.metadata['twitter:description'] || 
-           entry.metadata['meta:description'] || 
+    return entry.metadata['og:description'] ||
+           entry.metadata['twitter:description'] ||
+           entry.metadata['meta:description'] ||
            null;
+  }
+
+  // Normalized so a device ID's textual casing (which has genuinely varied across data sources
+  // in the past - see guid.ts) can't cause a device to fail to match its own metadata/color.
+  // Falls back to the raw value on malformed input rather than crashing the whole list render.
+  function normalizedDeviceId(entry: HistoryEntry): string {
+    try {
+      return normalizeGuid(entry.deviceId);
+    } catch {
+      return entry.deviceId;
+    }
   }
 
   // Load history data from background script
@@ -274,9 +286,9 @@
                 </div>
                 <div
                   class="device-indicator"
-                  title={deviceMap.get(entry.deviceId)?.deviceName || 'Unknown device'}
+                  title={deviceMap.get(normalizedDeviceId(entry))?.deviceName || 'Unknown device'}
                 >
-                  <span class="device-emoji">{deviceMap.get(entry.deviceId)?.emoji || emojiForDeviceId(entry.deviceId)}</span>
+                  <span class="device-emoji">{deviceMap.get(normalizedDeviceId(entry))?.emoji || emojiForDeviceId(normalizedDeviceId(entry))}</span>
                 </div>
               </div>
             </a>
