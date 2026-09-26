@@ -14,7 +14,7 @@ import type {
 // Utility function to broadcast history updates to popup windows
 async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' | 'manual_refresh') {
   console.log('Background: Broadcasting HISTORY_UPDATED message, reason:', reason);
-  
+
   try {
     // Send message to all connected tabs/popups
     await browser.runtime.sendMessage({
@@ -24,6 +24,17 @@ async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' 
   } catch (error) {
     console.log('Background: Error broadcasting message (popup might not be open):', error);
     // This is normal - popup might not be open
+  }
+}
+
+async function broadcastResyncProgress(progress: { phase: 'downloading' | 'applying'; current: number; total: number }) {
+  try {
+    await browser.runtime.sendMessage({
+      type: 'RESYNC_PROGRESS',
+      payload: progress
+    });
+  } catch (error) {
+    // Normal - popup might not be open to receive it
   }
 }
 
@@ -93,6 +104,9 @@ export default defineBackground(() => {
       onSyncEventsApplied: (eventCount: number) => {
         console.log('Background: Sync events applied from other devices:', eventCount);
         broadcastHistoryUpdated('sync_complete');
+      },
+      onResyncProgress: (progress) => {
+        broadcastResyncProgress(progress);
       }
     });
 

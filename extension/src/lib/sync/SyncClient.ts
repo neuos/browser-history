@@ -10,6 +10,7 @@ import { setDeviceId } from '@/lib/HistoryTree/DeviceID'
 
 export interface SyncClientCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
+  onResyncProgress?: (progress: { phase: 'downloading' | 'applying'; current: number; total: number }) => void;
 }
 
 export class SyncClient {
@@ -983,6 +984,7 @@ export class SyncClient {
     const events: SyncEvent[] = []
     let skip = 0
     const take = 1000
+    let totalCount = 0
     while (true) {
       const url = `${this.config.serverUrl}/api/v1/sync/events?since=0&exclude_device=false&skip=${skip}&take=${take}`
       const response = await fetch(url, {
@@ -1001,14 +1003,25 @@ export class SyncClient {
       const result = await response.json()
       const pageEvents: SyncEvent[] = result.events || []
       events.push(...pageEvents)
+      totalCount = result.totalCount || events.length
+      this.callbacks.onResyncProgress?.({ phase: 'downloading', current: events.length, total: totalCount })
 
       if (!result.hasMore || pageEvents.length === 0) break
       skip += take
     }
 
     const orderedEvents = [...events].sort((a, b) => a.timestamp - b.timestamp)
-    for (const event of orderedEvents) {
-      await this.applySyncEvent(event)
+    for (let i = 0; i < orderedEvents.length; i++) {
+      await this.applySyncEvent(orderedEvents[i])
+      // Reporting every event would flood the message channel for thousands of events -
+      // reporting every 25 (plus the guaranteed final one below) keeps the popup's progress
+      // display responsive without the overhead.
+      if (i % 25 === 0) {
+        this.callbacks.onResyncProgress?.({ phase: 'applying', current: i + 1, total: orderedEvents.length })
+      }
+    }
+    if (orderedEvents.length > 0) {
+      this.callbacks.onResyncProgress?.({ phase: 'applying', current: orderedEvents.length, total: orderedEvents.length })
     }
 
     if (events.length > 0) {

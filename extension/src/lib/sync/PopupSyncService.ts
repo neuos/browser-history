@@ -17,12 +17,13 @@ import type { DeviceInfo, SyncStatus } from './types'
 export class PopupSyncService {
   // Send a message to background script and wait for response
   private async sendMessage<T extends BackgroundToPopupMessage>(
-    message: PopupToBackgroundMessage
+    message: PopupToBackgroundMessage,
+    timeoutMs = 10000
   ): Promise<T> {
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         reject(new Error('Sync operation timeout'))
-      }, 10000) // 10 second timeout
+      }, timeoutMs)
 
       browser.runtime.sendMessage(message)
         .then(response => {
@@ -132,9 +133,13 @@ export class PopupSyncService {
 
   async clearLocalCacheAndResync(): Promise<{ eventsApplied: number }> {
     console.log('PopupSyncService: Clearing local cache and resyncing via background script')
+    // Paging through and applying thousands of events sequentially can genuinely take minutes,
+    // especially on a phone - the default 10s timeout is sized for quick status-check messages,
+    // not this. The background operation isn't cancelled by the popup giving up either way; a
+    // longer timeout just means the popup actually waits for and shows the real result.
     const response = await this.sendMessage<ClearLocalCacheAndResyncResponse>({
       type: 'CLEAR_LOCAL_CACHE_AND_RESYNC'
-    })
+    }, 5 * 60 * 1000)
     if (!response.payload.success) {
       throw new Error(response.payload.error || 'Resync failed')
     }

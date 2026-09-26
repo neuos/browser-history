@@ -115,6 +115,15 @@ export interface HistoryUpdatedMessage extends SyncMessage {
   }
 }
 
+export interface ResyncProgressMessage extends SyncMessage {
+  type: 'RESYNC_PROGRESS'
+  payload: {
+    phase: 'downloading' | 'applying'
+    current: number
+    total: number
+  }
+}
+
 export interface GetSyncConfigResponse extends SyncMessage {
   type: 'GET_SYNC_CONFIG_RESPONSE'
   payload: {
@@ -169,6 +178,7 @@ export type BackgroundToPopupMessage =
   | ClearConfigurationResponse
   | PerformFullSyncResponse
   | HistoryUpdatedMessage
+  | ResyncProgressMessage
   | GetSyncConfigResponse
   | SetDeviceEmojiResponse
   | GetAllDevicesResponse

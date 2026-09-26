@@ -72,6 +72,9 @@
         console.log('App: Received SYNC_STATUS_CHANGED message');
         updateSyncStatus();
       }
+      if (message.type === 'RESYNC_PROGRESS') {
+        resyncProgress = message.payload;
+      }
     };
     
     browser.runtime.onMessage.addListener(messageListener);
@@ -172,19 +175,31 @@
   }
   
   let migrateResult = '';
+  let isResyncing = false;
+  let resyncProgress: { phase: 'downloading' | 'applying'; current: number; total: number } | null = null;
+  $: resyncProgressText = resyncProgress
+    ? `${resyncProgress.phase === 'downloading' ? 'Downloading' : 'Applying'} ${resyncProgress.current}/${resyncProgress.total}...`
+    : '';
 
   // Wipes the local history/page cache and redownloads the complete event log fresh from the
   // server - the way to pick up a server-side data correction (or just recover from any local
-  // drift) without needing devtools access, which Firefox for Android doesn't offer at all.
+  // drift) without needing devtools access, which Firefox for Android doesn't offer at all. Can
+  // take minutes for a large history, so it reports live progress rather than sitting silent.
   async function clearLocalCacheAndResync() {
     if (!confirm('Clear local history cache and redownload everything from the server? This can take a moment.')) {
       return;
     }
+    isResyncing = true;
+    resyncProgress = null;
+    migrateResult = '';
     try {
       const { eventsApplied } = await popupSyncService.clearLocalCacheAndResync();
       migrateResult = `Resynced - applied ${eventsApplied} events from the server.`;
     } catch (error) {
       migrateResult = `Failed: ${error instanceof Error ? error.message : 'unknown error'}`;
+    } finally {
+      isResyncing = false;
+      resyncProgress = null;
     }
   }
 
@@ -369,9 +384,14 @@
           <button
             class="secondary-btn"
             on:click={clearLocalCacheAndResync}
+            disabled={isResyncing}
             title="Clear local history cache and redownload everything fresh from the server"
           >
-            Re-sync From Server
+            {#if isResyncing}
+              <span class="spinner"></span> Syncing...
+            {:else}
+              Re-sync From Server
+            {/if}
           </button>
 
           <button
@@ -382,7 +402,12 @@
           </button>
         </div>
 
-        {#if migrateResult}
+        {#if isResyncing}
+          <div class="migrate-result">
+            <span class="spinner"></span>
+            {resyncProgressText || 'Starting resync...'}
+          </div>
+        {:else if migrateResult}
           <div class="migrate-result">{migrateResult}</div>
         {/if}
       {/if}
@@ -619,6 +644,26 @@
     border-radius: 3px;
     padding: 6px 8px;
     word-break: break-word;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 2px solid rgba(0, 0, 0, 0.2);
+    border-top-color: #007acc;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .primary-btn, .secondary-btn, .danger-btn {
@@ -652,6 +697,16 @@
 
   .secondary-btn:hover:not(:disabled) {
     background-color: #5a6268;
+  }
+
+  .secondary-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+
+  .secondary-btn .spinner {
+    border-color: rgba(255, 255, 255, 0.4);
+    border-top-color: white;
   }
 
   .danger-btn {

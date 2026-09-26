@@ -4,6 +4,7 @@ import type { HistoryNode, Page } from '@/lib/HistoryTree/HistoryNode'
 
 export interface SyncServiceCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
+  onResyncProgress?: (progress: { phase: 'downloading' | 'applying'; current: number; total: number }) => void;
 }
 
 export class SyncService {
@@ -12,7 +13,8 @@ export class SyncService {
 
   constructor(callbacks: SyncServiceCallbacks = {}) {
     this.syncClient = new SyncClient({
-      onSyncEventsApplied: callbacks.onSyncEventsApplied
+      onSyncEventsApplied: callbacks.onSyncEventsApplied,
+      onResyncProgress: callbacks.onResyncProgress
     })
   }
 
