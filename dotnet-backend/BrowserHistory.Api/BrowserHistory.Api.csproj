@@ -29,12 +29,14 @@
     <StripSymbols>true</StripSymbols>
     
     <!--
-      Reflection-based JSON stays on: PublishAot is false above, and ApiJsonContext (the source-gen
-      resolver meant to replace reflection for AOT) is never registered in Program.cs, is missing
-      several DTOs used by real endpoints, and references at least one DTO from the wrong
-      namespace. Setting this to false without a working resolver wired in makes every JSON
-      endpoint fail at startup (System.Text.Json.ThrowHelper.ThrowNotSupportedException_NoMetadataForType).
-      Revisit together when AOT publishing is actually turned back on.
+      Reflection-based JSON stays on: PublishAot is false above. A prior source-gen
+      JsonSerializerContext (meant to replace reflection for AOT) was removed as dead code - it
+      was never registered in Program.cs, was missing several DTOs used by real endpoints, and
+      referenced at least one DTO from a namespace that no longer exists. Setting PublishAot to
+      true without a working resolver wired in makes every JSON endpoint fail at startup
+      (System.Text.Json.ThrowHelper.ThrowNotSupportedException_NoMetadataForType). A fresh
+      JsonSerializerContext would need to be written from scratch, matching the DTOs as they
+      actually are, before AOT publishing could be turned back on.
     -->
   </PropertyGroup>
 

@@ -50,8 +50,6 @@ public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDevic
         {
             var device = Device.Create(deviceId, request.DeviceName);
             await _deviceRepository.CreateAsync(device, cancellationToken);
-            var syncEvent = SyncEvent.DeviceConnected(deviceId);
-            await _unitOfWork.SyncEvents.CreateAsync(syncEvent, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 

@@ -28,6 +28,10 @@ export class DeviceMetadataRepositoryIndexedDB
     return { ...storedItem, deviceId: formatGuid(storedItem.deviceId) };
   }
 
+  async clear(): Promise<void> {
+    return this.clearAllItems();
+  }
+
   protected getEntityKey(metadata: DeviceMetadata): UuidBytes {
     return parseGuid(metadata.deviceId);
   }

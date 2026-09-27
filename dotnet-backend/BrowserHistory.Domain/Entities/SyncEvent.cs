@@ -32,20 +32,6 @@ public class SyncEvent
         Metadata = metadata;
     }
 
-    // Legacy constructor for device-lifecycle events that aren't tied to a specific entity
-    private SyncEvent(DeviceId deviceId, SyncEventType eventType, string? metadata = null)
-    {
-        Id = Guid.NewGuid();
-        EntityId = string.Empty;
-        DeviceId = deviceId;
-        EventType = eventType;
-        EntityType = SyncEntityType.History; // Default for legacy events
-        Data = string.Empty;
-        Checksum = string.Empty;
-        Metadata = metadata;
-        Timestamp = DateTime.UtcNow;
-    }
-
     public Guid Id { get; private set; }
     public string EntityId { get; private set; } = string.Empty;
     public DeviceId DeviceId { get; private set; } = default!;
@@ -91,56 +77,17 @@ public class SyncEvent
         return new SyncEvent(id, entityId, deviceId, timestamp, eventType, entityType,
             data, checksum, metadata);
     }
-
-    /// <summary>
-    /// Creates a new sync event (legacy method for backward compatibility)
-    /// </summary>
-    public static SyncEvent Create(DeviceId deviceId, SyncEventType eventType, string? metadata = null)
-    {
-        return new SyncEvent(deviceId, eventType, metadata);
-    }
-
-    /// <summary>
-    /// Creates a device connected event
-    /// </summary>
-    public static SyncEvent DeviceConnected(DeviceId deviceId) =>
-        Create(deviceId, SyncEventType.DeviceConnected);
-
-    /// <summary>
-    /// Creates a device disconnected event
-    /// </summary>
-    public static SyncEvent DeviceDisconnected(DeviceId deviceId) =>
-        Create(deviceId, SyncEventType.DeviceDisconnected);
-
-    /// <summary>
-    /// Creates a history sync started event
-    /// </summary>
-    public static SyncEvent HistorySyncStarted(DeviceId deviceId, string? metadata = null) =>
-        Create(deviceId, SyncEventType.HistorySyncStarted, metadata);
-
-    /// <summary>
-    /// Creates a history sync completed event
-    /// </summary>
-    public static SyncEvent HistorySyncCompleted(DeviceId deviceId, string? metadata = null) =>
-        Create(deviceId, SyncEventType.HistorySyncCompleted, metadata);
-
-    /// <summary>
-    /// Creates a sync error event
-    /// </summary>
-    public static SyncEvent SyncError(DeviceId deviceId, string errorMessage) =>
-        Create(deviceId, SyncEventType.SyncError, errorMessage);
 }
 
 /// <summary>
-/// Types of sync events that can occur
+/// Types of sync events that can occur. Values 1-5 (device-lifecycle/audit markers with no
+/// associated entity) were removed as dead code - nothing constructed them once the one real
+/// caller (device registration) stopped, and the repository's own query already excluded them
+/// from ever being read back (see SyncEventRepository). Kept the numeric values of the ones that
+/// remain unchanged, since they're persisted as raw integers in already-live production data.
 /// </summary>
 public enum SyncEventType
 {
-    DeviceConnected = 1,
-    DeviceDisconnected = 2,
-    HistorySyncStarted = 3,
-    HistorySyncCompleted = 4,
-    SyncError = 5,
     Create = 6,
     Update = 7,
     Delete = 8

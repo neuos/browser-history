@@ -36,23 +36,3 @@ export function guidsEqual(a: string, b: string): boolean {
 export function normalizeGuid(id: string): UuidString {
   return formatGuid(parseGuid(id))
 }
-
-const ZERO_GUID_BYTES = new Uint8Array(16) as UuidBytes
-
-/**
- * Tolerant variant of parseGuid for data this code doesn't control the shape of - a synced
- * history event from another (possibly much older) device, which may predate this field
- * existing, or be malformed in some other way that's out of scope to recover here. Falls back to
- * an all-zero placeholder (renders as "Unknown device" with a deterministic fallback color,
- * same as any other unrecognized ID) rather than throwing and aborting the whole batch it's
- * part of - one bad historical row should never cost every other event in the same sync.
- */
-export function parseGuidOrZero(id: unknown): UuidBytes {
-  if (typeof id !== 'string') return ZERO_GUID_BYTES
-  try {
-    return parseGuid(id)
-  } catch {
-    console.warn('guid: could not parse device ID, using placeholder:', id)
-    return ZERO_GUID_BYTES
-  }
-}

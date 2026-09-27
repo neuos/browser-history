@@ -7,7 +7,7 @@ import { DeviceMetadata } from '@/lib/HistoryTree/DeviceMetadata'
 import { HistoryNode } from '@/lib/HistoryTree/HistoryNode'
 import { Page } from '@/lib/HistoryTree/HistoryNode'
 import { setDeviceId } from '@/lib/HistoryTree/DeviceID'
-import { parseGuidOrZero } from '@/lib/guid'
+import { parseGuid } from '@/lib/guid'
 
 export interface SyncClientCallbacks {
   onSyncEventsApplied?: (eventCount: number) => void;
@@ -746,10 +746,10 @@ export class SyncClient {
       historyNode.id = historyData.id
       // Parsed from the wire string into raw bytes here - historyData.deviceId is whatever
       // string the sending device embedded (could legitimately vary in letter case across
-      // devices/time - see guid.ts), and HistoryNode.deviceId is bytes everywhere else. Tolerant
-      // parse: this processes arbitrary historical events, some of which genuinely predate this
-      // field or could be malformed some other way - one bad row must not abort the whole batch.
-      historyNode.deviceId = parseGuidOrZero(historyData.deviceId)
+      // devices/time - see guid.ts), and HistoryNode.deviceId is bytes everywhere else. The API
+      // guarantees every event has a valid deviceId (see the server-side data fix removing the
+      // handful of events that didn't) - this is not defensive code for data that shouldn't exist.
+      historyNode.deviceId = parseGuid(historyData.deviceId)
       
       // Validate and set timestamp
       if (!historyData.timestamp) {
@@ -983,6 +983,13 @@ export class SyncClient {
 
     await this.historyRepository.clear()
     await this.pageRepository.clear()
+    // Every local store gets cleared, not just history/page - the entire point of this operation
+    // is a guaranteed-clean slate rebuilt from the server. A store that survives untouched can
+    // still hold rows from a previous version of this code in a now-incompatible shape (this
+    // happened in practice: deviceMetadata rows written before deviceId became raw bytes broke
+    // every device-name/emoji lookup after a resync that left them in place). Read-side code
+    // should never need to tolerate that - the fix belongs here, not as defensive parsing.
+    await this.deviceMetadataRepository.clear()
 
     // The endpoint paginates (default/max take is 100/1000) - a single fetch only ever returns
     // the oldest page starting from since=0, silently truncating everything after it. Page

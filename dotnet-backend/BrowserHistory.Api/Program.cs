@@ -90,7 +90,6 @@ app.UseAuthorization();
 
 // Map API endpoints
 app.MapAuthEndpoints();
-app.MapDeviceEndpoints();
 app.MapSyncEndpoints();
 app.MapFaviconEndpoints();
 app.MapSSEEndpoints();

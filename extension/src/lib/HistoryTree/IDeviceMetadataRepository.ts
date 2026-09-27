@@ -15,4 +15,9 @@ export interface IDeviceMetadataRepository {
      * Retrieves all known devices' metadata.
      */
     getAll(): Promise<DeviceMetadata[]>;
+
+    /**
+     * Removes every stored device's metadata.
+     */
+    clear(): Promise<void>;
 }
