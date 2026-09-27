@@ -4,32 +4,10 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-svelte'],
-  hooks: {
-    // WXT strips unrecognized action/browser_action sub-keys (theme_icons isn't part of its own
-    // icon-handling) when generating the final manifest, so setting it directly in `manifest`
-    // above gets silently dropped for the Firefox/MV2 output - confirmed by inspecting the built
-    // manifest.json. Injecting it here, after WXT's own generation, is what actually survives.
-    'build:manifestGenerated': (wxt, manifest) => {
-      if (wxt.config.browser !== 'firefox') return;
-      // Per MDN, "light"/"dark" name the *theme*, not the icon: "dark" is the icon for a theme
-      // with dark text (a light theme) and "light" is for a theme with light text (a dark theme)
-      // - backwards from the intuitive reading, and confirmed live: got this exact pair swapped
-      // on the first attempt, which made the icon invisible in light mode instead of dark mode.
-      const themeIcons = [16, 32, 48, 96, 128].map(size => ({
-        dark: `icon/${size}.png`,
-        light: `icon-dark/${size}.png`,
-        size,
-      }));
-      (manifest as any).browser_action = {
-        ...(manifest as any).browser_action,
-        theme_icons: themeIcons,
-      };
-    },
-  },
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.24',
+    version: '1.0.27',
     permissions: [
       'webNavigation',
       'tabs',
