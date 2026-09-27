@@ -213,9 +213,16 @@ export default defineBackground(() => {
       
       // Handle metadata extraction from content script
       if (message.type === PAGE_METADATA_EXTRACTED) {
-        const { url, title, metadata, timestamp } = message.payload;
+        const { url, title, metadata, favicon, timestamp } = message.payload;
         console.log('Received metadata for', url, metadata);
-        
+
+        // Routed through the existing capture pipeline (normalizes the URL, fetches and hashes
+        // the bytes, syncs) rather than duplicated here - this is a second source for the same
+        // capture, not a separate one.
+        if (favicon) {
+          historyService.updateFavicon(url, favicon);
+        }
+
         // Handle async operations without blocking
         (async () => {
           try {

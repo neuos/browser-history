@@ -65,20 +65,36 @@ export default defineContentScript({
       return metadata;
     };
 
+    // Reads the favicon straight from the page's own <link rel="icon"> markup, as a more direct
+    // and reliable source than the browser's own favicon resolution (tab.favIconUrl) - confirmed
+    // live: on Firefox for Android, tab.favIconUrl came back empty for many real pages across
+    // dozens of separate visits, while other pages on the same device resolved fine, suggesting
+    // the browser's own resolution pipeline (not this extension's capture code) is what's
+    // unreliable there for some icon formats/sites. document.querySelector already resolves
+    // .href to an absolute URL, so no manual URL joining is needed.
+    const extractFaviconUrl = (): string | undefined => {
+      const iconLink = document.querySelector<HTMLLinkElement>(
+        'link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]'
+      );
+      return iconLink?.href || undefined;
+    };
+
     // Function to send metadata to background script
     const sendMetadata = () => {
       const url = window.location.href;
       const title = document.title;
       const metadata = extractMetadata();
-      
-      // Only send if we have meaningful metadata
-      if (Object.keys(metadata).length > 0) {
+      const favicon = extractFaviconUrl();
+
+      // Only send if we have meaningful metadata or a favicon
+      if (Object.keys(metadata).length > 0 || favicon) {
         browser.runtime.sendMessage({
           type: PAGE_METADATA_EXTRACTED,
           payload: {
             url,
             title,
             metadata,
+            favicon,
             timestamp: Date.now()
           }
         });
