@@ -5,6 +5,7 @@ import { IHistoryRepository } from './IHistoryRepository';
 import { IPageRepository } from './IPageRepository';
 import { IFaviconBlobRepository } from './IFaviconBlobRepository';
 import { formatGuid } from '@/lib/guid';
+import { normalizeFaviconUrl } from '@/lib/faviconUrl';
 
 export class HistoryService {
     private historyRepo: IHistoryRepository;
@@ -38,32 +39,13 @@ export class HistoryService {
     }
 
     /**
-     * Collapses redundant slashes in a URL's path, e.g. "https://example.com//favicon.ico" ->
-     * "https://example.com/favicon.ico". Confirmed live: Firefox's own default favicon guess for
-     * a root-level page ("https://example.com/") produces exactly this doubled-slash URL, which
-     * then 404s on fetch (no favicon ever gets captured) and 404s again every time it's used as
-     * the raw <img src> fallback for display. The browser is the one handing us a malformed URL
-     * here, not our own data - correcting a known, narrow class of external-input weirdness like
-     * this is different from tolerating invalid data our own system produced.
-     */
-    private normalizeFaviconUrl(url: string): string {
-        try {
-            const parsed = new URL(url);
-            parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/');
-            return parsed.toString();
-        } catch {
-            return url;
-        }
-    }
-
-    /**
      * Fetches a favicon's actual bytes, computes its content hash, and stores it locally
      * (deduplicated by hash - a favicon already known locally is never re-fetched). Returns the
      * hash on success, or undefined if the fetch/hash fails - a broken favicon URL should never
      * block recording the page visit itself.
      */
     private async fetchAndStoreFaviconBlob(rawUrl: string): Promise<string | undefined> {
-        const url = this.normalizeFaviconUrl(rawUrl);
+        const url = normalizeFaviconUrl(rawUrl);
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -102,8 +84,15 @@ export class HistoryService {
         }
         console.log(`Tab updated: ${tab.id} - ${tab.url}`, changeInfo);
 
-        // Get the latest favicon and title
-        const favicon = changeInfo.favIconUrl;
+        // Get the latest favicon and title. changeInfo.favIconUrl is only present on the specific
+        // onUpdated firing where the browser noticed favIconUrl itself change - tabs.onUpdated
+        // fires separately per changed field (title, status, url, favIconUrl, ...), so a tab whose
+        // icon settled on an earlier fire and only its title changes afterward would never be
+        // captured if we only ever looked at changeInfo. tab.favIconUrl carries the browser's
+        // currently-known icon on every fire regardless of what changed this time, so falling back
+        // to it means a visit's favicon still gets captured even when this specific diff didn't
+        // mention it.
+        const favicon = changeInfo.favIconUrl || tab.favIconUrl;
 
         // Some browsers' WebExtensions implementations (confirmed live: Orion on Mac) report
         // favIconUrl as literally the tab's own page URL rather than an actual icon resource -
@@ -135,7 +124,7 @@ export class HistoryService {
 
     private async updatePageTitleOrFavicon(url: string, title?: string, rawFavicon?: string): Promise<void> {
         try {
-            const favicon = rawFavicon ? this.normalizeFaviconUrl(rawFavicon) : rawFavicon;
+            const favicon = rawFavicon ? normalizeFaviconUrl(rawFavicon) : rawFavicon;
             const faviconHash = favicon ? await this.fetchAndStoreFaviconBlob(favicon) : undefined;
 
             let page = await this.pageRepo.get(url);
