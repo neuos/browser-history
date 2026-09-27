@@ -236,7 +236,9 @@ export class HistoryService {
     }
 
     isInternalUrl(url: string): boolean {
-        const internalProtocols = ['chrome:', 'chrome-extension:', 'about:', 'moz-extension:'];
+        // orion: confirmed live - Orion's own new-tab page (orion://newtab/) was getting captured
+        // as a real history entry, since this list only covered Chromium/Firefox's internal schemes.
+        const internalProtocols = ['chrome:', 'chrome-extension:', 'about:', 'moz-extension:', 'orion:'];
         return internalProtocols.some(p => url.startsWith(p));
     }
 
