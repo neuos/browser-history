@@ -832,10 +832,18 @@ export class SyncClient {
         // captured on another device references a hash, not the image itself, so this device
         // needs its own copy before it can render anything. Best-effort: a failed fetch here
         // shouldn't fail the whole event application, the page data itself already saved fine.
+        // Awaited (not fire-and-forget) deliberately: this runs inside a sequential per-event
+        // apply loop that, during a full resync, processes hundreds of page events in a tight
+        // loop - firing every fetch unawaited meant hundreds of concurrent requests bursting
+        // past the server's rate limiter almost instantly, and a rate-limited fetch here just
+        // logs a warning and gives up with no retry, leaving those favicons permanently missing
+        // locally. Awaiting serializes them to match the loop's own one-at-a-time pace instead.
         if (pageData.faviconHash) {
-          this.ensureFaviconBlobLocal(pageData.faviconHash).catch(error => {
+          try {
+            await this.ensureFaviconBlobLocal(pageData.faviconHash)
+          } catch (error) {
             console.warn('SyncClient: Failed to fetch favicon blob for', pageData.url, error)
-          })
+          }
         }
       } catch (addError) {
         console.error('SyncClient: Error adding/updating page:', addError)
