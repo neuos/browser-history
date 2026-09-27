@@ -9,6 +9,5 @@ interface HistoryEntry {
     favicon: string | null;
     deviceId: string;
     metadata?: PageMetadata;
-    children?: HistoryEntry[];
 }
 export type { HistoryEntry };

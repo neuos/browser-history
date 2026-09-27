@@ -364,7 +364,6 @@ export class HistoryService {
                 // raw Uint8Array the way IndexedDB/structured-clone-native APIs do.
                 deviceId: formatGuid(node.deviceId),
                 metadata: page?.metadata || {},
-                children: [] // Populate children if needed
             };
         }));
         return entries.filter(entry => {

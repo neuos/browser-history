@@ -1,10 +1,7 @@
 using BrowserHistory.Application.Features.Auth.Commands.RegisterDevice;
 using BrowserHistory.Application.Features.Auth.Commands.RefreshToken;
-using BrowserHistory.Application.Features.Auth.Queries.GetDeviceInfo;
-using BrowserHistory.Application.Features.Auth.Queries.ValidateToken;
 using BrowserHistory.Application.Features.Auth.Models;
 using MediatR;
-using Microsoft.AspNetCore.Authorization;
 
 namespace BrowserHistory.Api.Extensions;
 
@@ -32,22 +29,6 @@ public static class AuthEndpoints
             .WithDescription("Refreshes an access token using a valid refresh token.")
             .Produces<RefreshTokenResponse>()
             .ProducesValidationProblem()
-            .Produces(401);
-
-        group.MapGet("/validate-token", ValidateToken)
-            .WithName("AuthValidateToken")
-            .WithSummary("Validate access token")
-            .WithDescription("Validates an access token and returns device information if valid.")
-            .RequireAuthorization("DevicePolicy")
-            .Produces<DeviceInfoDto>()
-            .Produces(401);
-
-        group.MapGet("/device-info", GetDeviceInfo)
-            .WithName("AuthGetDeviceInfo")
-            .WithSummary("Get device information")
-            .WithDescription("Gets device information from the authenticated token.")
-            .RequireAuthorization("DevicePolicy")
-            .Produces<DeviceInfoDto>()
             .Produces(401);
 
         return app;
@@ -92,7 +73,6 @@ public static class AuthEndpoints
     {
         try
         {
-            // Extract token from Authorization header
             var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
             if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer "))
             {
@@ -119,99 +99,6 @@ public static class AuthEndpoints
         {
             return Results.Problem(
                 title: "Token refresh failed",
-                detail: ex.Message,
-                statusCode: 500);
-        }
-    }
-
-    private static async Task<IResult> ValidateToken(
-        HttpContext context,
-        IMediator mediator,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-            if (authHeader == null || !authHeader.StartsWith("Bearer "))
-            {
-                return Results.Unauthorized();
-            }
-
-            var token = authHeader["Bearer ".Length..];
-            var query = new ValidateTokenQuery(token);
-            var result = await mediator.Send(query, cancellationToken);
-
-            if (!result.IsValid || result.DeviceId == null)
-            {
-                return Results.Unauthorized();
-            }
-
-            // Get device info
-            var deviceInfoQuery = new GetDeviceInfoQuery(token);
-            var deviceInfo = await mediator.Send(deviceInfoQuery, cancellationToken);
-
-            if (deviceInfo == null)
-            {
-                return Results.Unauthorized();
-            }
-
-            var response = new DeviceInfoDto
-            {
-                DeviceId = deviceInfo.DeviceId.Value.ToString(),
-                DeviceName = deviceInfo.DeviceName,
-                RegisteredAt = deviceInfo.RegisteredAt,
-                LastSeen = deviceInfo.LastSeen,
-                IsActive = deviceInfo.IsActive
-            };
-
-            return Results.Ok(response);
-        }
-        catch (Exception ex)
-        {
-            return Results.Problem(
-                title: "Token validation failed",
-                detail: ex.Message,
-                statusCode: 500);
-        }
-    }
-
-    private static async Task<IResult> GetDeviceInfo(
-        HttpContext context,
-        IMediator mediator,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var authHeader = context.Request.Headers.Authorization.FirstOrDefault();
-            if (authHeader == null || !authHeader.StartsWith("Bearer "))
-            {
-                return Results.Unauthorized();
-            }
-
-            var token = authHeader["Bearer ".Length..];
-            var query = new GetDeviceInfoQuery(token);
-            var result = await mediator.Send(query, cancellationToken);
-
-            if (result == null)
-            {
-                return Results.Unauthorized();
-            }
-
-            var response = new DeviceInfoDto
-            {
-                DeviceId = result.DeviceId.Value.ToString(),
-                DeviceName = result.DeviceName,
-                RegisteredAt = result.RegisteredAt,
-                LastSeen = result.LastSeen,
-                IsActive = result.IsActive
-            };
-
-            return Results.Ok(response);
-        }
-        catch (Exception ex)
-        {
-            return Results.Problem(
-                title: "Failed to get device info",
                 detail: ex.Message,
                 statusCode: 500);
         }

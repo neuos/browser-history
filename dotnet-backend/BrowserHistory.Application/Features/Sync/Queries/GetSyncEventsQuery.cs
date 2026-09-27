@@ -50,35 +50,28 @@ public class GetSyncEventsQueryHandler : IRequestHandler<GetSyncEventsQuery, Res
 
     public async Task<Result<GetSyncEventsResponse>> Handle(GetSyncEventsQuery request, CancellationToken cancellationToken)
     {
-        try
+        var (events, totalCount) = await _syncEventRepository.GetEventsAsync(
+            excludeDeviceId: request.ExcludeDeviceId,
+            since: request.Since,
+            skip: request.Skip,
+            take: request.Take,
+            cancellationToken);
+
+        var eventDtos = events.Select(e => new SyncEventDto
         {
-            var (events, totalCount) = await _syncEventRepository.GetEventsAsync(
-                excludeDeviceId: request.ExcludeDeviceId,
-                since: request.Since,
-                skip: request.Skip,
-                take: request.Take,
-                cancellationToken);
+            Id = e.Id,
+            DeviceId = e.DeviceId.ToString(),
+            Timestamp = new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
+            EventType = e.EventType.ToString().ToUpperInvariant(),
+            EntityType = e.EntityType.ToString().ToLowerInvariant(),
+            EntityId = e.EntityId,
+            Data = JsonSerializer.Deserialize<JsonElement>(e.Data),
+            Checksum = e.Checksum
+        }).ToList();
 
-            var eventDtos = events.Select(e => new SyncEventDto
-            {
-                Id = e.Id,
-                DeviceId = e.DeviceId.ToString(),
-                Timestamp = new DateTimeOffset(e.Timestamp, TimeSpan.Zero).ToUnixTimeMilliseconds(),
-                EventType = e.EventType.ToString().ToUpperInvariant(),
-                EntityType = e.EntityType.ToString().ToLowerInvariant(),
-                EntityId = e.EntityId,
-                Data = JsonSerializer.Deserialize<JsonElement>(e.Data),
-                Checksum = e.Checksum
-            }).ToList();
+        var hasMore = request.Skip + request.Take < totalCount;
 
-            var hasMore = request.Skip + request.Take < totalCount;
-
-            return Result<GetSyncEventsResponse>.Success(
-                new GetSyncEventsResponse(eventDtos, totalCount, hasMore));
-        }
-        catch (Exception ex)
-        {
-            return Result<GetSyncEventsResponse>.Failure($"Failed to retrieve sync events: {ex.Message}");
-        }
+        return Result<GetSyncEventsResponse>.Success(
+            new GetSyncEventsResponse(eventDtos, totalCount, hasMore));
     }
 }

@@ -43,13 +43,12 @@ public class RegisterDeviceCommandHandlerTests
         var command = new RegisterDeviceCommand("Test Device", "shared-secret");
         var deviceId = DeviceId.New();
         var accessToken = "access-token";
-        var refreshToken = "refresh-token";
-        
+
         _authServiceMock.Setup(x => x.RegisterDeviceAsync(
-            command.DeviceName, 
-            command.SharedSecret, 
+            command.DeviceName,
+            command.SharedSecret,
             It.IsAny<CancellationToken>()))
-            .ReturnsAsync((deviceId, accessToken, refreshToken));
+            .ReturnsAsync((deviceId, accessToken));
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -58,7 +57,6 @@ public class RegisterDeviceCommandHandlerTests
         result.Should().NotBeNull();
         result.DeviceId.Should().Be(deviceId);
         result.AccessToken.Should().Be(accessToken);
-        result.RefreshToken.Should().Be(refreshToken);
         result.ExpiresAt.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(120), TimeSpan.FromSeconds(5));
 
         // Regression guard: registering a device via /auth/register-device must also create the

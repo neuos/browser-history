@@ -438,13 +438,6 @@
     background-color: #f8f9fa;
   }
 
-  .header h2 {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    color: #333;
-  }
-
   .sync-status-btn {
     display: flex;
     align-items: center;

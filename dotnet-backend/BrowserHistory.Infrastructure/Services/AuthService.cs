@@ -22,7 +22,6 @@ public class AuthService : IAuthService
     private readonly string _jwtIssuer;
     private readonly string _jwtAudience;
     private readonly int _accessTokenExpiryMinutes;
-    private readonly int _refreshTokenExpiryDays;
 
     public AuthService(
         UserManager<DeviceUser> userManager,
@@ -30,23 +29,21 @@ public class AuthService : IAuthService
     {
         _userManager = userManager;
         _configuration = configuration;
-        
-        _jwtSecret = _configuration["Jwt:Secret"] 
+
+        _jwtSecret = _configuration["Jwt:Secret"]
             ?? throw new InvalidOperationException("JWT Secret not configured");
-        _jwtIssuer = _configuration["Jwt:Issuer"] 
+        _jwtIssuer = _configuration["Jwt:Issuer"]
             ?? throw new InvalidOperationException("JWT Issuer not configured");
-        _jwtAudience = _configuration["Jwt:Audience"] 
+        _jwtAudience = _configuration["Jwt:Audience"]
             ?? throw new InvalidOperationException("JWT Audience not configured");
         _accessTokenExpiryMinutes = int.TryParse(_configuration["Jwt:AccessTokenExpiryMinutes"], out var accessMinutes) ? accessMinutes : 60;
-        _refreshTokenExpiryDays = int.TryParse(_configuration["Jwt:RefreshTokenExpiryDays"], out var refreshDays) ? refreshDays : 7;
     }
 
-    public async Task<(DeviceId DeviceId, string AccessToken, string RefreshToken)> RegisterDeviceAsync(
-        string deviceName, 
+    public async Task<(DeviceId DeviceId, string AccessToken)> RegisterDeviceAsync(
+        string deviceName,
         string sharedSecret,
         CancellationToken cancellationToken = default)
     {
-        // Validate shared secret against configured value
         var expectedSecret = _configuration["Auth:SharedSecret"];
         if (string.IsNullOrEmpty(expectedSecret) || expectedSecret != sharedSecret)
         {
@@ -56,7 +53,7 @@ public class AuthService : IAuthService
         // Registration is idempotent by device name: a device whose access token has fully
         // expired (e.g. offline long enough that refresh - which requires a still-valid token -
         // can no longer help it) has no other way back in except registering again. If it does,
-        // re-authenticate the existing device (same DeviceId, fresh tokens) instead of failing
+        // re-authenticate the existing device (same DeviceId, fresh token) instead of failing
         // on the DeviceName uniqueness constraint the domain Device/DeviceUser rows both enforce.
         // Sync FirstOrDefault, not FirstOrDefaultAsync: UserManager.Users is a bare IQueryable,
         // and EF Core's async LINQ extensions require the provider to implement
@@ -78,32 +75,13 @@ public class AuthService : IAuthService
             }
             await _userManager.UpdateAsync(existingDeviceUser);
 
-            var existingAccessToken = GenerateAccessToken(existingDeviceUser);
-            var existingRefreshToken = GenerateRefreshToken();
-
-            await _userManager.RemoveAuthenticationTokenAsync(
-                existingDeviceUser,
-                "BrowserHistory",
-                "RefreshToken");
-            await _userManager.SetAuthenticationTokenAsync(
-                existingDeviceUser,
-                "BrowserHistory",
-                "RefreshToken",
-                existingRefreshToken);
-
-            return (existingDeviceUser.DeviceId, existingAccessToken, existingRefreshToken);
+            return (existingDeviceUser.DeviceId, GenerateAccessToken(existingDeviceUser));
         }
 
-        // Generate new device ID
         var deviceId = DeviceId.New();
-
-        // Hash the shared secret for storage
         var hashedSecret = HashSharedSecret(sharedSecret);
-
-        // Create device user
         var deviceUser = new DeviceUser(deviceId, deviceName, hashedSecret);
 
-        // Register the device user
         var result = await _userManager.CreateAsync(deviceUser);
         if (!result.Succeeded)
         {
@@ -111,21 +89,10 @@ public class AuthService : IAuthService
             throw new InvalidOperationException($"Failed to register device: {errors}");
         }
 
-        // Generate tokens
-        var accessToken = GenerateAccessToken(deviceUser);
-        var refreshToken = GenerateRefreshToken();
-
-        // Store refresh token
-        await _userManager.SetAuthenticationTokenAsync(
-            deviceUser,
-            "BrowserHistory",
-            "RefreshToken",
-            refreshToken);
-
-        return (deviceId, accessToken, refreshToken);
+        return (deviceId, GenerateAccessToken(deviceUser));
     }
 
-    public async Task<(string AccessToken, string RefreshToken)> RefreshTokenAsync(
+    public async Task<string> RefreshTokenAsync(
         string accessToken,
         CancellationToken cancellationToken = default)
     {
@@ -144,27 +111,10 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException("Invalid or expired access token");
         }
 
-        // Update last seen
         deviceUser.UpdateLastSeen();
         await _userManager.UpdateAsync(deviceUser);
 
-        // Generate new tokens
-        var newAccessToken = GenerateAccessToken(deviceUser);
-        var newRefreshToken = GenerateRefreshToken();
-
-        // Update stored refresh token
-        await _userManager.RemoveAuthenticationTokenAsync(
-            deviceUser, 
-            "BrowserHistory", 
-            "RefreshToken");
-        
-        await _userManager.SetAuthenticationTokenAsync(
-            deviceUser, 
-            "BrowserHistory", 
-            "RefreshToken", 
-            newRefreshToken);
-
-        return (newAccessToken, newRefreshToken);
+        return GenerateAccessToken(deviceUser);
     }
 
     public Task<DeviceId?> ValidateTokenAsync(
@@ -204,25 +154,6 @@ public class AuthService : IAuthService
         }
     }
 
-    public async Task<(DeviceId DeviceId, string DeviceName, DateTime RegisteredAt, DateTime LastSeen, bool IsActive)?> GetDeviceInfoAsync(
-        string accessToken,
-        CancellationToken cancellationToken = default)
-    {
-        var deviceId = await ValidateTokenAsync(accessToken, cancellationToken);
-        if (deviceId == null)
-        {
-            return null;
-        }
-
-        var deviceUser = await _userManager.FindByIdAsync(deviceId.Value.ToString());
-        if (deviceUser == null)
-        {
-            return null;
-        }
-
-        return (deviceUser.DeviceId, deviceUser.DeviceName, deviceUser.RegisteredAt, deviceUser.LastSeen, deviceUser.IsActive);
-    }
-
     public async Task UpdateLastSeenAsync(
         DeviceId deviceId,
         CancellationToken cancellationToken = default)
@@ -231,25 +162,6 @@ public class AuthService : IAuthService
         if (deviceUser != null)
         {
             deviceUser.UpdateLastSeen();
-            await _userManager.UpdateAsync(deviceUser);
-        }
-    }
-
-    public async Task RevokeDeviceTokensAsync(
-        DeviceId deviceId,
-        CancellationToken cancellationToken = default)
-    {
-        var deviceUser = await _userManager.FindByIdAsync(deviceId.Value.ToString());
-        if (deviceUser != null)
-        {
-            // Remove all authentication tokens
-            await _userManager.RemoveAuthenticationTokenAsync(
-                deviceUser, 
-                "BrowserHistory", 
-                "RefreshToken");
-
-            // Optionally deactivate the device
-            deviceUser.Deactivate();
             await _userManager.UpdateAsync(deviceUser);
         }
     }
@@ -276,20 +188,12 @@ public class AuthService : IAuthService
             Issuer = _jwtIssuer,
             Audience = _jwtAudience,
             SigningCredentials = new SigningCredentials(
-                new SymmetricSecurityKey(key), 
+                new SymmetricSecurityKey(key),
                 SecurityAlgorithms.HmacSha256Signature)
         };
 
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
-    }
-
-    private static string GenerateRefreshToken()
-    {
-        var randomBytes = new byte[64];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomBytes);
-        return Convert.ToBase64String(randomBytes);
     }
 
     private static string HashSharedSecret(string sharedSecret)

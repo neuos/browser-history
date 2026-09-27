@@ -92,7 +92,7 @@ public class MiddlewareIntegrationTests : IClassFixture<AuthWebApplicationFactor
     public async Task ExceptionHandling_Should_Return401_ForUnauthorizedRequests()
     {
         // Act - Try to access protected endpoint without authentication
-        var response = await _client.GetAsync("/api/v1/auth/device-info");
+        var response = await _client.GetAsync("/api/v1/sync/events");
 
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);

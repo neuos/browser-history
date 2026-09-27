@@ -5,9 +5,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace BrowserHistory.Application.Features.Auth.Commands.RegisterDevice;
 
-/// <summary>
-/// Handler for RegisterDeviceCommand.
-/// </summary>
 public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDeviceCommand, RegisterDeviceResult>
 {
     private readonly IAuthService _authService;
@@ -33,7 +30,7 @@ public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDevic
     {
         // Register the device (identity/auth) using the auth service - this issues the JWT
         // and stores the device in the separate Identity database.
-        var (deviceId, accessToken, refreshToken) = await _authService.RegisterDeviceAsync(
+        var (deviceId, accessToken) = await _authService.RegisterDeviceAsync(
             request.DeviceName,
             request.SharedSecret,
             cancellationToken);
@@ -53,14 +50,9 @@ public sealed class RegisterDeviceCommandHandler : IRequestHandler<RegisterDevic
             await _unitOfWork.SaveChangesAsync(cancellationToken);
         }
 
-        // Calculate expiry time based on configuration
         var accessTokenExpiryMinutes = int.TryParse(_configuration["Jwt:AccessTokenExpiryMinutes"], out var minutes) ? minutes : 60;
         var expiresAt = DateTime.UtcNow.AddMinutes(accessTokenExpiryMinutes);
 
-        return new RegisterDeviceResult(
-            deviceId,
-            accessToken,
-            refreshToken,
-            expiresAt);
+        return new RegisterDeviceResult(deviceId, accessToken, expiresAt);
     }
 }

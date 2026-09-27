@@ -4,9 +4,6 @@ using Microsoft.Extensions.Configuration;
 
 namespace BrowserHistory.Application.Features.Auth.Commands.RefreshToken;
 
-/// <summary>
-/// Handler for RefreshTokenCommand.
-/// </summary>
 public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, RefreshTokenResult>
 {
     private readonly IAuthService _authService;
@@ -24,18 +21,11 @@ public sealed class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCom
         RefreshTokenCommand request,
         CancellationToken cancellationToken)
     {
-        // Refresh the tokens using the auth service
-        var (accessToken, refreshToken) = await _authService.RefreshTokenAsync(
-            request.RefreshToken,
-            cancellationToken);
+        var accessToken = await _authService.RefreshTokenAsync(request.AccessToken, cancellationToken);
 
-        // Calculate expiry time based on configuration
         var accessTokenExpiryMinutes = int.TryParse(_configuration["Jwt:AccessTokenExpiryMinutes"], out var minutes) ? minutes : 60;
         var expiresAt = DateTime.UtcNow.AddMinutes(accessTokenExpiryMinutes);
 
-        return new RefreshTokenResult(
-            accessToken,
-            refreshToken,
-            expiresAt);
+        return new RefreshTokenResult(accessToken, expiresAt);
     }
 }

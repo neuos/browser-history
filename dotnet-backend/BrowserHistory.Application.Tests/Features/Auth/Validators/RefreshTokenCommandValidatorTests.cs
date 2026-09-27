@@ -13,7 +13,7 @@ public class RefreshTokenCommandValidatorTests
     public void Validate_WithValidCommand_ShouldNotHaveValidationErrors()
     {
         // Arrange
-        var command = new RefreshTokenCommand("valid-refresh-token");
+        var command = new RefreshTokenCommand("valid-access-token");
 
         // Act
         var result = _validator.Validate(command);
@@ -25,16 +25,16 @@ public class RefreshTokenCommandValidatorTests
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
-    public void Validate_WithInvalidRefreshToken_ShouldHaveValidationError(string? invalidRefreshToken)
+    public void Validate_WithInvalidAccessToken_ShouldHaveValidationError(string? invalidAccessToken)
     {
         // Arrange
-        var command = new RefreshTokenCommand(invalidRefreshToken!);
+        var command = new RefreshTokenCommand(invalidAccessToken!);
 
         // Act
         var result = _validator.Validate(command);
 
         // Assert
         result.IsValid.Should().BeFalse();
-        result.Errors.Should().Contain(e => e.PropertyName == "RefreshToken");
+        result.Errors.Should().Contain(e => e.PropertyName == "AccessToken");
     }
 }

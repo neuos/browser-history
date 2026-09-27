@@ -23,7 +23,6 @@ public class RequestLoggingMiddleware
         var stopwatch = Stopwatch.StartNew();
         var requestBody = await ReadRequestBodyAsync(context);
 
-        // Log the incoming request
         _logger.LogInformation("HTTP {Method} {Path} started {CorrelationId}",
             context.Request.Method,
             context.Request.Path,
@@ -37,7 +36,6 @@ public class RequestLoggingMiddleware
         {
             stopwatch.Stop();
 
-            // Log the completed request with timing and status
             var logLevel = GetLogLevel(context.Response.StatusCode);
             _logger.Log(logLevel, 
                 "HTTP {Method} {Path} responded {StatusCode} in {ElapsedMilliseconds}ms {CorrelationId}",
@@ -47,7 +45,6 @@ public class RequestLoggingMiddleware
                 stopwatch.ElapsedMilliseconds,
                 context.Items["X-Correlation-ID"]);
 
-            // Log additional details for errors
             if (context.Response.StatusCode >= 400)
             {
                 _logger.LogWarning("Request failed with status {StatusCode}. " +
@@ -70,13 +67,11 @@ public class RequestLoggingMiddleware
     {
         try
         {
-            // Skip reading body for GET, DELETE, and other methods that typically don't have bodies
             if (context.Request.Method is "GET" or "DELETE" or "HEAD" or "OPTIONS")
             {
                 return string.Empty;
             }
 
-            // Skip reading body for multipart/form-data and other binary content
             var contentType = context.Request.ContentType?.ToLowerInvariant();
             if (contentType != null && (
                 contentType.Contains("multipart/") ||
@@ -94,7 +89,6 @@ public class RequestLoggingMiddleware
             var body = await reader.ReadToEndAsync();
             context.Request.Body.Position = 0;
 
-            // Truncate very long request bodies for logging
             return body.Length > 1000 ? body[..1000] + "... [truncated]" : body;
         }
         catch (Exception)

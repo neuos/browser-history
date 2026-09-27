@@ -28,17 +28,17 @@ export class HistoryNode {
     // two different letter cases silently comparing unequal everywhere it was a plain string.
     // See guid.ts and DeviceID.ts.
     public deviceId: UuidBytes = getDeviceId();
-    public id: HistoryNodeId; // Unique identifier for the history node
+    public id: HistoryNodeId;
 
     constructor(
         public tabId: number,
         public url:string,
-        public navigationSourceID: HistoryNodeId | null = null, // ID of the node that led to this navigation
+        public navigationSourceID: HistoryNodeId | null = null,
     ) {
-        this.id = crypto.randomUUID() as UuidString; // Each node has a unique ID
+        this.id = crypto.randomUUID() as UuidString;
     }
 }
 
 export type HistoryNodeId = UuidString;
 
-export type Favicon = string; // URL of the favicon image
+export type Favicon = string;

@@ -1,52 +1,22 @@
 import { DatabaseSingleton } from './DatabaseSingleton';
 
-/**
- * Abstract base class for IndexedDB repositories
- * Handles common database operations and connection management
- */
 export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyRange = IDBValidKey> {
-  protected readonly DB_NAME = 'browser-history-db';
-  // Unused - DatabaseSingleton owns the actual version passed to indexedDB.open(); kept in sync
-  // here only so a reader doesn't see a stale number if they check this file instead of that one.
-  protected readonly DB_VERSION = 4;
   protected abstract readonly STORE_NAME: string;
   protected db: IDBDatabase | undefined;
 
   // must be called in the constructor of subclasses
   protected registerSchema(builder: (db: IDBDatabase) => void): void {
-    console.log('Registering schema for store:', this.STORE_NAME);
-    const dbInstance = DatabaseSingleton.getInstance();
-    dbInstance.registerSchema(builder);
+    DatabaseSingleton.getInstance().registerSchema(builder);
   }
 
-  /**
-   * Gets or initializes the IndexedDB database
-   */
   protected async getDB(): Promise<IDBDatabase> {
-    const dbInstance = DatabaseSingleton.getInstance();
-    return dbInstance.getDB();
+    return DatabaseSingleton.getInstance().getDB();
   }
 
-  /**
-   * Abstract method to prepare entity for storage
-   * Allows subclasses to transform entities before storing
-   */
   protected abstract prepareForStorage(entity: T): any;
-
-  /**
-   * Abstract method to process entity after retrieval
-   * Allows subclasses to transform stored data back into entities
-   */
   protected abstract processFromStorage(storedItem: any): T;
-
-  /**
-   * Abstract method to extract the key from an entity
-   */
   protected abstract getEntityKey(entity: T): K;
 
-  /**
-   * Adds or updates an entity in the store
-   */
   protected async saveItem(entity: T): Promise<void> {
     const db = await this.getDB();
     let itemToStore = this.prepareForStorage(entity);
@@ -56,7 +26,6 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
     if (existingItem) {
       itemToStore = this.update(existingItem, itemToStore);
     }
-    console.log('Saving item to store:', this.STORE_NAME, itemToStore);
 
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], 'readwrite');
@@ -73,16 +42,8 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
       };
     });
   }
-  
-  /**
-   * Updates an existing item with new properties
-   * Only properties that are not undefined in newItem will be updated
-   * Existing properties will remain unchanged if not specified in newItem
-   *
-   * @param existingItem The item to update
-   * @param newItem The new item with properties to update
-   * @returns The updated item
-   */
+
+  /** Merges newItem onto existingItem, keeping existingItem's value for any field newItem leaves undefined. */
   update(existingItem: T, newItem: T): T {
     const updatedItem = { ...existingItem };
     for (const key in newItem) {
@@ -93,9 +54,6 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
     return updatedItem;
   }
 
-  /**
-   * Gets an entity by its key
-   */
   protected async getItem(key: K): Promise<T | undefined> {
     const db = await this.getDB();
 
@@ -120,9 +78,6 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
     });
   }
 
-  /**
-   * Gets all entities from the store
-   */
   protected async getAllItems(): Promise<T[]> {
     const db = await this.getDB();
 
@@ -143,9 +98,6 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
     });
   }
 
-  /**
-   * Removes every entity from the store
-   */
   protected async clearAllItems(): Promise<void> {
     const db = await this.getDB();
 
@@ -161,30 +113,6 @@ export abstract class BaseIndexedDBRepository<T, K extends IDBValidKey | IDBKeyR
 
       transaction.oncomplete = () => {
         resolve();
-      };
-    });
-  }
-
-  /**
-   * Gets items by an index value
-   */
-  protected async getItemsByIndex(indexName: string, value: any): Promise<T[]> {
-    const db = await this.getDB();
-
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([this.STORE_NAME], 'readonly');
-      const store = transaction.objectStore(this.STORE_NAME);
-      const index = store.index(indexName);
-
-      const request = index.getAll(value);
-
-      request.onerror = () => {
-        reject(request.error);
-      };
-
-      request.onsuccess = () => {
-        const items = request.result.map(item => this.processFromStorage(item));
-        resolve(items);
       };
     });
   }

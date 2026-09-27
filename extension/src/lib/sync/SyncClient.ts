@@ -45,53 +45,29 @@ export class SyncClient {
     // Don't load config in constructor - let it be loaded explicitly
   }
 
-  // Configuration management
   async loadConfig(): Promise<void> {
-    console.log('SyncClient: loadConfig called, isLoaded:', this.isLoaded, 'loadingPromise:', !!this.loadingPromise)
-    
-    // If already loaded, return immediately
     if (this.isLoaded) return
-    
-    // If already loading, wait for the existing promise
+
     if (this.loadingPromise) {
-      console.log('SyncClient: Already loading config, waiting for existing promise...')
       return this.loadingPromise
     }
-    
-    // Start loading
+
     this.loadingPromise = this._doLoadConfig()
-    
+
     try {
       await this.loadingPromise
     } finally {
       this.loadingPromise = null
     }
   }
-  
+
   private async _doLoadConfig(): Promise<void> {
     try {
-      console.log('SyncClient: Loading config from browser storage...')
       const result = await browser.storage.local.get(['syncConfig', 'deviceInfo', 'lastDownloadTimestamp'])
-      console.log('SyncClient: Storage result:', { 
-        hasSyncConfig: !!result.syncConfig, 
-        hasDeviceInfo: !!result.deviceInfo,
-        lastDownloadTimestamp: result.lastDownloadTimestamp,
-        syncConfig: result.syncConfig,
-        deviceInfo: result.deviceInfo 
-      })
       this.config = result.syncConfig || null
       this.deviceInfo = result.deviceInfo || null
       this.lastDownloadTimestamp = result.lastDownloadTimestamp || 0
       this.isLoaded = true
-
-      // Migrate DeviceInfo saved before tokenIssuedAt existed: without this, ensureTokenFresh()'s
-      // age check becomes NaN (always false), so a token registered under the old code would
-      // never be refreshed. Treat as already due for refresh - ensureTokenFresh() will pick it
-      // up on the next sync attempt.
-      if (this.deviceInfo && this.deviceInfo.tokenIssuedAt === undefined) {
-        console.log('SyncClient: Migrating pre-tokenIssuedAt device info, forcing refresh on next sync')
-        this.deviceInfo.tokenIssuedAt = 0
-      }
 
       // Reconcile the local capture-time device ID (initializeDeviceID(), run earlier at
       // startup before config is loaded) with the real, server-registered one on every load -

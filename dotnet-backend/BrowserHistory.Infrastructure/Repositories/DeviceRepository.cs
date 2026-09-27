@@ -6,9 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BrowserHistory.Infrastructure.Repositories;
 
-/// <summary>
-/// Repository implementation for Device operations
-/// </summary>
 public class DeviceRepository : IDeviceRepository
 {
     private readonly BrowserHistoryDbContext _context;
@@ -24,20 +21,6 @@ public class DeviceRepository : IDeviceRepository
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
     }
 
-    public async Task<Device?> GetByNameAsync(string deviceName, CancellationToken cancellationToken = default)
-    {
-        return await _context.Devices
-            .FirstOrDefaultAsync(d => d.DeviceName == deviceName, cancellationToken);
-    }
-
-    public async Task<IEnumerable<Device>> GetAllActiveAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Devices
-            .Where(d => d.IsActive)
-            .OrderByDescending(d => d.LastSeen)
-            .ToListAsync(cancellationToken);
-    }
-
     public async Task<Device> CreateAsync(Device device, CancellationToken cancellationToken = default)
     {
         var entry = await _context.Devices.AddAsync(device, cancellationToken);
@@ -48,14 +31,5 @@ public class DeviceRepository : IDeviceRepository
     {
         _context.Devices.Update(device);
         return Task.FromResult(device);
-    }
-
-    public async Task DeleteAsync(DeviceId deviceId, CancellationToken cancellationToken = default)
-    {
-        var device = await GetByIdAsync(deviceId, cancellationToken);
-        if (device != null)
-        {
-            _context.Devices.Remove(device);
-        }
     }
 }

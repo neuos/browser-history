@@ -21,16 +21,6 @@ export function formatGuid(bytes: Uint8Array): UuidString {
   return stringify(bytes) as UuidString
 }
 
-/** True value equality - compares the actual 128-bit value, never the text representation. */
-export function guidsEqual(a: string, b: string): boolean {
-  const bytesA = parseGuid(a)
-  const bytesB = parseGuid(b)
-  for (let i = 0; i < 16; i++) {
-    if (bytesA[i] !== bytesB[i]) return false
-  }
-  return true
-}
-
 /** Canonical (lowercase) string form - use to normalize a GUID string before storing/comparing
  * it anywhere it must remain text (network payloads, browser.storage.local - see DeviceID.ts). */
 export function normalizeGuid(id: string): UuidString {

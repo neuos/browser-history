@@ -77,19 +77,5 @@ public static class SyncEndpoints
         .WithSummary("Submit sync events from a device")
         .Produces<SubmitSyncEventsResponse>()
         .Produces(400);
-
-        // GET /api/v1/sync/status/{deviceId} - Get sync status for device
-        group.MapGet("/status/{deviceId:guid}", async (Guid deviceId, IMediator mediator) =>
-        {
-            var query = new GetSyncStatusQuery(DeviceId.From(deviceId));
-            var result = await mediator.Send(query);
-
-            if (!result.IsSuccess)
-                return Results.Problem(result.Error);
-
-            return Results.Ok(result.Value);
-        })
-        .WithName("GetSyncStatus")
-        .WithSummary("Get sync status for a specific device");
     }
 }

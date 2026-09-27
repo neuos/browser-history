@@ -79,40 +79,6 @@ public class AuthIntegrationTests : IClassFixture<AuthWebApplicationFactory>
     }
 
     [Fact]
-    public async Task ValidateToken_WithoutAuthHeader_ShouldReturnUnauthorized()
-    {
-        // Act
-        var response = await _client.GetAsync("/api/v1/auth/validate-token");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "missing auth header should be rejected");
-    }
-
-    [Fact]
-    public async Task ValidateToken_WithInvalidToken_ShouldReturnUnauthorized()
-    {
-        // Arrange
-        _client.DefaultRequestHeaders.Authorization = 
-            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "invalid.jwt.token");
-
-        // Act
-        var response = await _client.GetAsync("/api/v1/auth/validate-token");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "invalid token should be rejected");
-    }
-
-    [Fact]
-    public async Task GetDeviceInfo_WithoutAuthHeader_ShouldReturnUnauthorized()
-    {
-        // Act
-        var response = await _client.GetAsync("/api/v1/auth/device-info");
-
-        // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "missing auth header should be rejected");
-    }
-
-    [Fact]
     public async Task RefreshToken_WithInvalidToken_ShouldReturnUnauthorized()
     {
         // Arrange

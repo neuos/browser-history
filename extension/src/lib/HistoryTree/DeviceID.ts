@@ -19,12 +19,8 @@ export async function initializeDeviceID() {
   // Generate a new UUID v4
   const generated = crypto.randomUUID();
   deviceID = parseGuid(generated);
-  // Bug fixed: this used to write the shorthand key "deviceID" (capital ID) while the read
-  // above looks up "deviceId" (lowercase d) - two different storage keys, so the persisted
-  // value was never actually found on the next load. Every background-script restart (routine
-  // on Chrome's MV3 service worker, less so on Firefox's persistent MV2 page, but still happens
-  // on any browser/extension restart) silently generated a brand-new random device ID instead
-  // of reusing the real one, with no error - it always "worked", just as the wrong identity.
+  // Key must match the read above ("deviceId") - a mismatched key here would silently generate a
+  // fresh random device ID on every background-script restart, with no error.
   await browser.storage.local.set({ deviceId: generated });
   return deviceID;
 }

@@ -7,15 +7,12 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Serilog
 builder.Host.UseSerilog((context, configuration) =>
     configuration.ReadFrom.Configuration(context.Configuration));
 
-// Add services to the container
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Add CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -26,12 +23,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Add Application and Infrastructure layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// Configure AOT-compatible JSON serialization
-// Configure JSON serialization for API
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
     options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
@@ -40,8 +34,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.WriteIndented = builder.Environment.IsDevelopment();
 });
 
-// Add performance optimizations
-builder.Services.AddMemoryCaching(builder.Configuration); // required by ICacheService (CacheService)
 builder.Services.AddResponseCompression(options =>
 {
     options.EnableForHttps = true;
@@ -49,14 +41,6 @@ builder.Services.AddResponseCompression(options =>
     options.Providers.Add<GzipCompressionProvider>();
 });
 
-builder.Services.AddOutputCache(options =>
-{
-    options.AddPolicy("ShortTerm", policy => policy.Expire(TimeSpan.FromMinutes(1)));
-    options.AddPolicy("MediumTerm", policy => policy.Expire(TimeSpan.FromMinutes(10)));
-    options.AddPolicy("LongTerm", policy => policy.Expire(TimeSpan.FromHours(1)));
-});
-
-// Add rate limiting
 builder.Services.AddRateLimiting();
 
 var app = builder.Build();
@@ -66,29 +50,23 @@ var app = builder.Build();
 // every request without this.
 await app.Services.InitializeDatabaseAsync();
 
-// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-// Add custom middleware pipeline (correlation ID, exception handling, enhanced logging)
 app.UseCustomMiddleware();
 
-// Add performance middleware
 app.UseResponseCompression();
-app.UseOutputCache();
 app.UseRateLimiter();
 
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
-// Add authentication and authorization middleware
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map API endpoints
 app.MapAuthEndpoints();
 app.MapSyncEndpoints();
 app.MapFaviconEndpoints();

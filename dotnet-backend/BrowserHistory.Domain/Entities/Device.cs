@@ -24,55 +24,19 @@ public class Device
     public DateTime LastSeen { get; private set; }
     public bool IsActive { get; private set; }
 
-    /// <summary>
-    /// Creates a new device with auto-generated ID
-    /// </summary>
     public static Device Create(string deviceName)
     {
         return new Device(DeviceId.New(), deviceName);
     }
 
-    /// <summary>
-    /// Creates a device with specific ID (for testing or data migration)
-    /// </summary>
     public static Device Create(DeviceId id, string deviceName)
     {
         return new Device(id, deviceName);
     }
 
-    /// <summary>
-    /// Updates the last seen timestamp
-    /// </summary>
     public void UpdateLastSeen()
     {
         LastSeen = DateTime.UtcNow;
-    }
-
-    /// <summary>
-    /// Updates the device name
-    /// </summary>
-    public void UpdateDeviceName(string newName)
-    {
-        DeviceName = ValidateDeviceName(newName);
-        UpdateLastSeen();
-    }
-
-    /// <summary>
-    /// Deactivates the device
-    /// </summary>
-    public void Deactivate()
-    {
-        IsActive = false;
-        UpdateLastSeen();
-    }
-
-    /// <summary>
-    /// Reactivates the device
-    /// </summary>
-    public void Reactivate()
-    {
-        IsActive = true;
-        UpdateLastSeen();
     }
 
     private static string ValidateDeviceName(string deviceName)

@@ -337,14 +337,6 @@
     min-height: 0;
   }
 
-  h1 {
-    font-size: 18px;
-    font-weight: 600;
-    color: #3c4043;
-    margin-top: 0;
-    margin-bottom: 16px;
-  }
-
   .controls {
     display: flex;
     flex-wrap: wrap;

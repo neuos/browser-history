@@ -43,16 +43,11 @@ public static class DependencyInjection
 
         // Services
         services.AddSingleton<IDateTimeProvider, DateTimeProvider>();
-        services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
         services.AddSingleton<IServerSentEventService, ServerSentEventService>();
         services.AddSingleton<ISSEConnectionManager>(provider => 
             provider.GetRequiredService<IServerSentEventService>() as ServerSentEventService 
             ?? throw new InvalidOperationException("ServerSentEventService must implement ISSEConnectionManager"));
-        services.AddSingleton<ICacheService, CacheService>();
-
-        // Configuration options
-        services.Configure<CacheOptions>(configuration.GetSection(CacheOptions.SectionName));
 
         // Add HTTP context accessor for CurrentUserService
         services.AddHttpContextAccessor();

@@ -28,8 +28,7 @@ public class AuthServiceTests
         jwtSection.Setup(x => x["Issuer"]).Returns("Test.Issuer");
         jwtSection.Setup(x => x["Audience"]).Returns("Test.Audience");
         jwtSection.Setup(x => x["AccessTokenExpiryMinutes"]).Returns("60");
-        jwtSection.Setup(x => x["RefreshTokenExpiryDays"]).Returns("7");
-        
+
         var authSection = new Mock<IConfigurationSection>();
         authSection.Setup(x => x["SharedSecret"]).Returns("test-shared-secret");
 
@@ -45,8 +44,6 @@ public class AuthServiceTests
             .Returns("test-shared-secret");
         _configurationMock.Setup(x => x["Jwt:AccessTokenExpiryMinutes"])
             .Returns("60");
-        _configurationMock.Setup(x => x["Jwt:RefreshTokenExpiryDays"])
-            .Returns("7");
 
         _authService = new AuthService(_userManagerMock.Object, _configurationMock.Object);
     }
@@ -73,9 +70,8 @@ public class AuthServiceTests
         // Assert
         result.DeviceId.Should().NotBe(default(DeviceId));
         result.AccessToken.Should().NotBeNullOrEmpty();
-        result.RefreshToken.Should().NotBeNullOrEmpty();
-        
-        _userManagerMock.Verify(x => x.CreateAsync(It.Is<DeviceUser>(d => 
+
+        _userManagerMock.Verify(x => x.CreateAsync(It.Is<DeviceUser>(d =>
             d.DeviceName == deviceName)), Times.Once);
     }
 
@@ -125,7 +121,7 @@ public class AuthServiceTests
             It.IsAny<string>()))
             .ReturnsAsync(IdentityResult.Success);
 
-        var (deviceId, accessToken, _) = await _authService.RegisterDeviceAsync(deviceName, sharedSecret);
+        var (deviceId, accessToken) = await _authService.RegisterDeviceAsync(deviceName, sharedSecret);
 
         // Act
         var validatedDeviceId = await _authService.ValidateTokenAsync(accessToken);
@@ -177,12 +173,11 @@ public class AuthServiceTests
             .ReturnsAsync(IdentityResult.Success);
 
         // Act
-        var result = await _authService.RefreshTokenAsync(registerResult.AccessToken);
+        var newAccessToken = await _authService.RefreshTokenAsync(registerResult.AccessToken);
 
         // Assert
-        result.AccessToken.Should().NotBeNullOrEmpty();
-        result.AccessToken.Should().NotBe(registerResult.AccessToken); // a genuinely new token
-        result.RefreshToken.Should().NotBeNullOrEmpty();
+        newAccessToken.Should().NotBeNullOrEmpty();
+        newAccessToken.Should().NotBe(registerResult.AccessToken); // a genuinely new token
     }
 
     [Fact]

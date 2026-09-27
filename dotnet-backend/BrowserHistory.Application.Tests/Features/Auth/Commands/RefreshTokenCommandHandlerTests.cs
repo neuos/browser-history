@@ -27,14 +27,13 @@ public class RefreshTokenCommandHandlerTests
     public async Task Handle_WithValidRefreshToken_ShouldReturnNewTokens()
     {
         // Arrange
-        var command = new RefreshTokenCommand("valid-refresh-token");
+        var command = new RefreshTokenCommand("valid-access-token");
         var newAccessToken = "new-access-token";
-        var newRefreshToken = "new-refresh-token";
-        
+
         _authServiceMock.Setup(x => x.RefreshTokenAsync(
-            command.RefreshToken, 
+            command.AccessToken,
             It.IsAny<CancellationToken>()))
-            .ReturnsAsync((newAccessToken, newRefreshToken));
+            .ReturnsAsync(newAccessToken);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -42,7 +41,6 @@ public class RefreshTokenCommandHandlerTests
         // Assert
         result.Should().NotBeNull();
         result.AccessToken.Should().Be(newAccessToken);
-        result.RefreshToken.Should().Be(newRefreshToken);
         result.ExpiresAt.Should().BeCloseTo(DateTime.UtcNow.AddMinutes(60), TimeSpan.FromSeconds(5));
     }
 

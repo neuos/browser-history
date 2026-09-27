@@ -18,13 +18,10 @@ public class CorrelationIdMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Get correlation ID from request header or generate a new one
         var correlationId = GetOrGenerateCorrelationId(context);
 
-        // Add correlation ID to the response headers
         context.Response.Headers.TryAdd(CorrelationIdHeaderName, correlationId);
 
-        // Add correlation ID to the logging scope
         using (_logger.BeginScope(new Dictionary<string, object>
         {
             ["CorrelationId"] = correlationId,
@@ -32,7 +29,6 @@ public class CorrelationIdMiddleware
             ["RequestMethod"] = context.Request.Method
         }))
         {
-            // Store correlation ID in HttpContext.Items for use in other parts of the application
             context.Items[CorrelationIdHeaderName] = correlationId;
 
             await _next(context);
@@ -41,7 +37,6 @@ public class CorrelationIdMiddleware
 
     private static string GetOrGenerateCorrelationId(HttpContext context)
     {
-        // Try to get correlation ID from request headers
         if (context.Request.Headers.TryGetValue(CorrelationIdHeaderName, out var correlationIdValue))
         {
             var correlationId = correlationIdValue.FirstOrDefault();
@@ -51,7 +46,6 @@ public class CorrelationIdMiddleware
             }
         }
 
-        // Generate a new correlation ID if not provided
         return Guid.NewGuid().ToString();
     }
 }

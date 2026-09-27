@@ -6,10 +6,6 @@ import { HistoryService } from "@/lib/HistoryTree/HistoryService";
 import { SPA_URL_CHANGE, PAGE_METADATA_EXTRACTED } from "@/message";
 import { Page, HistoryNode } from "@/lib/HistoryTree/HistoryNode";
 import { createSyncService } from "@/lib/sync/SyncService";
-import type { 
-  PopupToBackgroundMessage, 
-  BackgroundToPopupMessage 
-} from "@/lib/sync/messages";
 
 // Utility function to broadcast history updates to popup windows
 async function broadcastHistoryUpdated(reason: 'sync_complete' | 'initial_load' | 'manual_refresh') {
