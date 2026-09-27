@@ -11,9 +11,13 @@ export default defineConfig({
     // manifest.json. Injecting it here, after WXT's own generation, is what actually survives.
     'build:manifestGenerated': (wxt, manifest) => {
       if (wxt.config.browser !== 'firefox') return;
+      // Per MDN, "light"/"dark" name the *theme*, not the icon: "dark" is the icon for a theme
+      // with dark text (a light theme) and "light" is for a theme with light text (a dark theme)
+      // - backwards from the intuitive reading, and confirmed live: got this exact pair swapped
+      // on the first attempt, which made the icon invisible in light mode instead of dark mode.
       const themeIcons = [16, 32, 48, 96, 128].map(size => ({
-        light: `icon/${size}.png`,
-        dark: `icon-dark/${size}.png`,
+        dark: `icon/${size}.png`,
+        light: `icon-dark/${size}.png`,
         size,
       }));
       (manifest as any).browser_action = {
@@ -25,7 +29,7 @@ export default defineConfig({
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.23',
+    version: '1.0.24',
     permissions: [
       'webNavigation',
       'tabs',
