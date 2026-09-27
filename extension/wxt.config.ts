@@ -7,7 +7,7 @@ export default defineConfig({
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.17',
+    version: '1.0.18',
     permissions: [
       'webNavigation',
       'tabs',

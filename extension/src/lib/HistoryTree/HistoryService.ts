@@ -38,12 +38,32 @@ export class HistoryService {
     }
 
     /**
+     * Collapses redundant slashes in a URL's path, e.g. "https://example.com//favicon.ico" ->
+     * "https://example.com/favicon.ico". Confirmed live: Firefox's own default favicon guess for
+     * a root-level page ("https://example.com/") produces exactly this doubled-slash URL, which
+     * then 404s on fetch (no favicon ever gets captured) and 404s again every time it's used as
+     * the raw <img src> fallback for display. The browser is the one handing us a malformed URL
+     * here, not our own data - correcting a known, narrow class of external-input weirdness like
+     * this is different from tolerating invalid data our own system produced.
+     */
+    private normalizeFaviconUrl(url: string): string {
+        try {
+            const parsed = new URL(url);
+            parsed.pathname = parsed.pathname.replace(/\/{2,}/g, '/');
+            return parsed.toString();
+        } catch {
+            return url;
+        }
+    }
+
+    /**
      * Fetches a favicon's actual bytes, computes its content hash, and stores it locally
      * (deduplicated by hash - a favicon already known locally is never re-fetched). Returns the
      * hash on success, or undefined if the fetch/hash fails - a broken favicon URL should never
      * block recording the page visit itself.
      */
-    private async fetchAndStoreFaviconBlob(url: string): Promise<string | undefined> {
+    private async fetchAndStoreFaviconBlob(rawUrl: string): Promise<string | undefined> {
+        const url = this.normalizeFaviconUrl(rawUrl);
         try {
             const response = await fetch(url);
             if (!response.ok) {
@@ -113,8 +133,9 @@ export class HistoryService {
             .catch(error => console.error('Error updating page favicon:', error));
     }
 
-    private async updatePageTitleOrFavicon(url: string, title?: string, favicon?: string): Promise<void> {
+    private async updatePageTitleOrFavicon(url: string, title?: string, rawFavicon?: string): Promise<void> {
         try {
+            const favicon = rawFavicon ? this.normalizeFaviconUrl(rawFavicon) : rawFavicon;
             const faviconHash = favicon ? await this.fetchAndStoreFaviconBlob(favicon) : undefined;
 
             let page = await this.pageRepo.get(url);

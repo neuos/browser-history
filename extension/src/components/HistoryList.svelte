@@ -33,9 +33,16 @@
   // a floating popup), so a target="_blank" click just navigates that same tab to the URL instead
   // of spawning a new one, replacing the whole history list with the destination page. Opening the
   // tab explicitly through the tabs API is the one approach that behaves the same everywhere.
-  function openInNewTab(event: MouseEvent, url: string) {
+  //
+  // window.close() afterward is deliberate, not cleanup: without it the new tab opens in the
+  // background while this popup/tab stays in front showing the exact same history list, so nothing
+  // visibly happens from the user's perspective even though a tab really did open. Closing this one
+  // surfaces the new tab immediately, matching how clicking a link in any other browser popup UI
+  // (bookmarks, etc.) both opens the destination and dismisses the popup.
+  async function openInNewTab(event: MouseEvent, url: string) {
     event.preventDefault();
-    browser.tabs.create({ url });
+    await browser.tabs.create({ url });
+    window.close();
   }
 
   // Request history data from background script instead of creating repositories here
