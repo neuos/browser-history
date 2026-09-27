@@ -4,10 +4,28 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   srcDir: 'src',
   modules: ['@wxt-dev/module-svelte'],
+  hooks: {
+    // WXT strips unrecognized action/browser_action sub-keys (theme_icons isn't part of its own
+    // icon-handling) when generating the final manifest, so setting it directly in `manifest`
+    // above gets silently dropped for the Firefox/MV2 output - confirmed by inspecting the built
+    // manifest.json. Injecting it here, after WXT's own generation, is what actually survives.
+    'build:manifestGenerated': (wxt, manifest) => {
+      if (wxt.config.browser !== 'firefox') return;
+      const themeIcons = [16, 32, 48, 96, 128].map(size => ({
+        light: `icon/${size}.png`,
+        dark: `icon-dark/${size}.png`,
+        size,
+      }));
+      (manifest as any).browser_action = {
+        ...(manifest as any).browser_action,
+        theme_icons: themeIcons,
+      };
+    },
+  },
   manifest: {
     name: 'Browser History Sync',
     description: 'Synchronize browser history across devices with real-time updates and cross-browser support',
-    version: '1.0.22',
+    version: '1.0.23',
     permissions: [
       'webNavigation',
       'tabs',
@@ -32,7 +50,7 @@ export default defineConfig({
         '48': 'icon/48.png',
         '96': 'icon/96.png',
         '128': 'icon/128.png'
-      }
+      },
     },
     browser_specific_settings: {
       gecko: {

@@ -243,8 +243,7 @@
 <main>
   <!-- Top header with sync status button -->
   <div class="header">
-    <h1>Browser History</h1>
-    <button 
+    <button
       class="sync-status-btn" 
       on:click={toggleSyncStatus}
       style="background-color: {statusColor};"
@@ -423,19 +422,33 @@
 
 <style>
   main {
-    min-width: 512px;
     display: flex;
     flex-direction: column;
-    height: 100%;
+    width: 100%;
+    min-height: 100vh;
+    box-sizing: border-box;
+    background: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  /* Desktop/floating popups have real room to grow into; narrow mobile viewports
+     (where this renders as a full page, not a popup) must stay fluid instead,
+     or the browser zooms out to fit the enforced minimum and clips the right edge. */
+  @media (min-width: 560px) {
+    main {
+      min-width: 512px;
+      width: auto;
+      min-height: 0;
+    }
   }
 
   .header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end;
     align-items: center;
     padding: 10px 15px;
-    border-bottom: 1px solid #e0e0e0;
-    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--color-border);
+    background-color: var(--color-bg-secondary);
   }
 
   .sync-status-btn {
@@ -464,8 +477,8 @@
   }
 
   .sync-status-panel {
-    background-color: #f1f3f4;
-    border-bottom: 1px solid #e0e0e0;
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
     padding: 15px;
     animation: slideDown 0.2s ease-out;
   }
@@ -492,7 +505,7 @@
     margin: 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--color-text);
   }
 
   .close-btn {
@@ -500,7 +513,7 @@
     border: none;
     font-size: 18px;
     cursor: pointer;
-    color: #666;
+    color: var(--color-text-secondary);
     padding: 0;
     width: 20px;
     height: 20px;
@@ -510,7 +523,7 @@
   }
 
   .close-btn:hover {
-    color: #333;
+    color: var(--color-text);
   }
 
   .status-details {
@@ -527,11 +540,11 @@
 
   .status-row .label {
     font-weight: 500;
-    color: #666;
+    color: var(--color-text-secondary);
   }
 
   .status-row .value {
-    color: #333;
+    color: var(--color-text);
     font-family: monospace;
   }
 
@@ -548,7 +561,7 @@
     margin: 0 0 15px 0;
     font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: var(--color-text);
   }
 
   .form-group {
@@ -560,26 +573,28 @@
     margin-bottom: 4px;
     font-size: 12px;
     font-weight: 500;
-    color: #666;
+    color: var(--color-text-secondary);
   }
 
   .form-group input {
     width: 100%;
     padding: 6px 8px;
-    border: 1px solid #ccc;
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     font-size: 12px;
     box-sizing: border-box;
+    background: var(--color-bg);
+    color: var(--color-text);
   }
 
   .form-group input:focus {
     outline: none;
-    border-color: #007acc;
+    border-color: var(--color-accent);
   }
 
   .form-group input:disabled {
-    background-color: #f5f5f5;
-    color: #666;
+    background-color: var(--color-hover);
+    color: var(--color-text-secondary);
   }
 
   .device-name-row {
@@ -607,12 +622,12 @@
   }
 
   .error {
-    color: #dc3545;
+    color: var(--color-danger);
     font-size: 12px;
     margin-bottom: 10px;
     padding: 5px;
-    background-color: #f8d7da;
-    border: 1px solid #f5c6cb;
+    background-color: var(--color-danger-bg);
+    border: 1px solid var(--color-danger-border);
     border-radius: 3px;
   }
 
@@ -632,9 +647,9 @@
   .migrate-result {
     margin-top: 10px;
     font-size: 12px;
-    color: #333;
-    background-color: #f1f3f4;
-    border: 1px solid #ddd;
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
     border-radius: 3px;
     padding: 6px 8px;
     word-break: break-word;
@@ -647,8 +662,8 @@
     display: inline-block;
     width: 10px;
     height: 10px;
-    border: 2px solid rgba(0, 0, 0, 0.2);
-    border-top-color: #007acc;
+    border: 2px solid rgba(128, 128, 128, 0.3);
+    border-top-color: var(--color-accent);
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
     flex-shrink: 0;
@@ -671,26 +686,26 @@
   }
 
   .primary-btn {
-    background-color: #007acc;
+    background-color: var(--color-accent);
     color: white;
   }
 
   .primary-btn:hover:not(:disabled) {
-    background-color: #005a9e;
+    background-color: var(--color-accent-hover);
   }
 
   .primary-btn:disabled {
-    background-color: #ccc;
+    background-color: var(--color-border);
     cursor: not-allowed;
   }
 
   .secondary-btn {
-    background-color: #6c757d;
+    background-color: var(--color-secondary-btn-bg);
     color: white;
   }
 
   .secondary-btn:hover:not(:disabled) {
-    background-color: #5a6268;
+    background-color: var(--color-secondary-btn-hover);
   }
 
   .secondary-btn:disabled {
@@ -704,7 +719,7 @@
   }
 
   .danger-btn {
-    background-color: #dc3545;
+    background-color: var(--color-danger);
     color: white;
   }
 

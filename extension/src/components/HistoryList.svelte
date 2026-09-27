@@ -320,15 +320,26 @@
   .history-container {
     display: flex;
     flex-direction: column;
-    height: 580px;
+    /* Fills the available height by default - this renders as a real mobile page,
+       not a fixed-size desktop popup, so a hardcoded height leaves a dead gap
+       below the list instead of reaching the bottom of the screen. */
+    height: 100%;
     width: 100%;
     box-sizing: border-box;
     margin: 0;
     padding: 16px;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
       "Helvetica Neue", Arial, sans-serif;
-    background-color: #fff;
-    color: #202124;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  /* Desktop/floating popups don't have a real page viewport to fill - give them
+     a reasonable fixed size instead of collapsing to their content's minimum. */
+  @media (min-width: 560px) {
+    .history-container {
+      height: 580px;
+    }
   }
 
   .list-wrapper {
@@ -350,21 +361,23 @@
     order: 1;
     padding: 10px 16px;
     font-size: 14px;
-    border: 1px solid #dfe1e5;
+    border: 1px solid var(--color-border);
     border-radius: 24px;
     outline: none;
+    background: var(--color-bg);
+    color: var(--color-text);
     transition:
       box-shadow 0.2s,
       border-color 0.2s;
   }
 
   .search-box:hover {
-    border-color: #cdd1d5;
+    border-color: var(--color-text-tertiary);
   }
 
   .search-box:focus {
-    border-color: #1a73e8;
-    box-shadow: 0 0 0 1px #1a73e8;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 1px var(--color-accent);
   }
 
   .date-input {
@@ -372,13 +385,15 @@
     order: 2;
     padding: 10px;
     font-size: 14px;
-    border: 1px solid #dfe1e5;
+    border: 1px solid var(--color-border);
     border-radius: 6px;
+    background: var(--color-bg);
+    color: var(--color-text);
   }
 
   .refresh-btn {
     order: 3;
-    background-color: #1a73e8;
+    background-color: var(--color-accent);
     color: white;
     border: none;
     padding: 10px 16px;
@@ -390,19 +405,19 @@
   }
 
   .refresh-btn:disabled {
-    background-color: #e0e0e0;
-    color: #a0a0a0;
+    background-color: var(--color-border);
+    color: var(--color-text-tertiary);
     cursor: not-allowed;
   }
 
   .refresh-btn:hover:not(:disabled) {
-    background-color: #185abc;
+    background-color: var(--color-accent-hover);
   }
 
   .error-message {
-    color: #d93025;
+    color: var(--color-danger);
     padding: 12px;
-    background-color: #fce8e6;
+    background-color: var(--color-danger-bg);
     border-radius: 8px;
     margin-bottom: 16px;
   }
@@ -410,9 +425,9 @@
   .loading,
   .empty-state {
     text-align: center;
-    color: #5f6368;
+    color: var(--color-text-secondary);
     padding: 40px 20px;
-    background-color: #f8f9fa;
+    background-color: var(--color-bg-secondary);
     border-radius: 8px;
   }
 
@@ -421,14 +436,14 @@
   }
 
   .empty-state .subtle {
-    color: #80868b;
+    color: var(--color-text-tertiary);
     font-size: 14px;
   }
 
   .secondary-btn {
     background-color: transparent;
-    color: #1a73e8;
-    border: 1px solid #dadce0;
+    color: var(--color-accent);
+    border: 1px solid var(--color-border);
     padding: 8px 16px;
     border-radius: 6px;
     cursor: pointer;
@@ -437,8 +452,8 @@
   }
 
   .secondary-btn:hover {
-    background-color: #f8f9fa;
-    border-color: #cdd1d5;
+    background-color: var(--color-hover);
+    border-color: var(--color-text-tertiary);
   }
 
   .history-list {
@@ -448,7 +463,7 @@
   }
 
   .history-item {
-    border-bottom: 1px solid #e8eaed;
+    border-bottom: 1px solid var(--color-border);
   }
 
   .history-item:last-child {
@@ -459,19 +474,19 @@
     display: block;
     text-decoration: none;
     color: inherit;
-    padding: 8px 4px; /* REDUCE padding */
+    padding: 8px 4px;
     border-radius: 4px;
     transition: background-color 0.2s;
   }
 
   .history-item a:hover {
-    background-color: #f8f9fa;
+    background-color: var(--color-hover);
   }
 
   .history-item-content {
     display: flex;
     align-items: center;
-    gap: 12px; /* REDUCE gap */
+    gap: 12px;
   }
 
   .favicon-container {
@@ -492,7 +507,7 @@
   .favicon-placeholder {
     width: 20px;
     height: 20px;
-    color: #5f6368;
+    color: var(--color-text-secondary);
   }
 
   .device-indicator {
@@ -515,23 +530,22 @@
   .history-item-title {
     font-size: 14px;
     font-weight: 400;
-    color: #202124;
+    color: var(--color-text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .history-item-url {
-    color: #5f6368;
+    color: var(--color-text-secondary);
     font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    /* font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace; */
   }
 
   .history-item-description {
-    color: #5f6368;
+    color: var(--color-text-secondary);
     font-size: 11px;
     line-height: 1.3;
     margin-top: 2px;
@@ -542,27 +556,27 @@
   }
 
   .url-schema {
-    color: #80868b;
+    color: var(--color-text-tertiary);
     font-weight: 300;
   }
 
   .url-host {
-    color: #202124;
+    color: var(--color-text);
     font-weight: 600;
   }
 
   .url-path {
-    color: #5f6368;
+    color: var(--color-text-secondary);
     font-weight: 400;
   }
 
   .url-query {
-    color: #80868b;
+    color: var(--color-text-tertiary);
     font-weight: 300;
   }
 
   .history-item-time {
-    color: #5f6368;
+    color: var(--color-text-secondary);
     font-size: 12px;
     white-space: nowrap;
     flex-shrink: 0;
