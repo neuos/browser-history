@@ -16,4 +16,9 @@ export interface IFaviconBlobRepository {
      * Checks whether a favicon blob is already stored locally, without reading its bytes.
      */
     has(hash: string): Promise<boolean>;
+
+    /**
+     * Removes every locally stored favicon blob.
+     */
+    clear(): Promise<void>;
 }

@@ -998,6 +998,11 @@ export class SyncClient {
     // every device-name/emoji lookup after a resync that left them in place). Read-side code
     // should never need to tolerate that - the fix belongs here, not as defensive parsing.
     await this.deviceMetadataRepository.clear()
+    // Same reasoning applies to favicon blobs: ensureFaviconBlobLocal() skips re-fetching any
+    // hash it already has stored (has(hash) short-circuits), so a blob written under an old,
+    // broken storage shape (e.g. a pre-fix serialization bug) sat there forever, permanently
+    // failing to decode on every future resync, since nothing ever forced a re-fetch of it.
+    await this.faviconBlobRepository.clear()
 
     // The endpoint paginates (default/max take is 100/1000) - a single fetch only ever returns
     // the oldest page starting from since=0, silently truncating everything after it. Page

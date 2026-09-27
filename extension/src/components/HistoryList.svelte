@@ -28,6 +28,16 @@
     }
   }
 
+  // Extension-hosted pages can't rely on <a target="_blank"> to open a real external tab - on
+  // Firefox for Android specifically, the action popup is itself opened as an ordinary tab (not
+  // a floating popup), so a target="_blank" click just navigates that same tab to the URL instead
+  // of spawning a new one, replacing the whole history list with the destination page. Opening the
+  // tab explicitly through the tabs API is the one approach that behaves the same everywhere.
+  function openInNewTab(event: MouseEvent, url: string) {
+    event.preventDefault();
+    browser.tabs.create({ url });
+  }
+
   // Request history data from background script instead of creating repositories here
   async function loadHistory(): Promise<HistoryEntry[]> {
     try {
@@ -234,7 +244,7 @@
       <ul class="history-list">
         {#each history as entry (entry.id)}
           <li class="history-item">
-            <a href={entry.url} target="_blank" rel="noopener noreferrer">
+            <a href={entry.url} target="_blank" rel="noopener noreferrer" on:click={(e) => openInNewTab(e, entry.url)}>
               <div class="history-item-content">
                 <div class="favicon-container">
                   {#if entry.favicon}

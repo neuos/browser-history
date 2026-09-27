@@ -37,6 +37,10 @@ export class FaviconBlobRepositoryIndexedDB
   async has(hash: string): Promise<boolean> {
     return (await this.getItem(hash)) !== undefined;
   }
+
+  async clear(): Promise<void> {
+    return this.clearAllItems();
+  }
 }
 
 function createFaviconBlobSchema(db: IDBDatabase): void {
