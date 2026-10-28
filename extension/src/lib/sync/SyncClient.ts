@@ -613,61 +613,76 @@ export class SyncClient {
     }
 
     const since = this.lastDownloadTimestamp
-    const url = `${this.config.serverUrl}/api/v1/sync/events?since=${since}&exclude_device=true`
+    // The endpoint paginates (default take is 100, max 1000), oldest first - a single fetch only
+    // ever returns the first page, which left a freshly registered device with just 100 of the
+    // other devices' events until later syncs slowly caught up. Page through with skip until the
+    // server reports no more.
+    const take = 1000
+    let skip = 0
+    let totalApplied = 0
+    let newestTimestamp = since
 
-    console.log('SyncClient: Fetching events from', url)
+    while (true) {
+      const url = `${this.config.serverUrl}/api/v1/sync/events?since=${since}&exclude_device=true&skip=${skip}&take=${take}`
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${this.deviceInfo.token}`,
-        'Content-Type': 'application/json',
-      },
-    })
+      console.log('SyncClient: Fetching events from', url)
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('SyncClient: Download failed:', response.status, errorText)
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.deviceInfo.token}`,
+          'Content-Type': 'application/json',
+        },
+      })
 
-      if (response.status === 401 && !retryingAfterRefresh) {
-        console.warn('SyncClient: Download got 401, attempting token refresh and one retry')
-        try {
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('SyncClient: Download failed:', response.status, errorText)
+
+        if (response.status === 401 && !retryingAfterRefresh) {
+          console.warn('SyncClient: Download got 401, attempting token refresh and one retry')
           try {
-            await this.refreshToken()
+            try {
+              await this.refreshToken()
+            } catch (refreshError) {
+              if (!this.config) throw refreshError
+              console.warn('SyncClient: Refresh failed, falling back to re-registration:', refreshError)
+              await this.registerDevice(this.config.serverUrl, this.config.deviceName, this.config.sharedSecret)
+            }
+            return await this.downloadEventsFromOtherDevices(true)
           } catch (refreshError) {
-            if (!this.config) throw refreshError
-            console.warn('SyncClient: Refresh failed, falling back to re-registration:', refreshError)
-            await this.registerDevice(this.config.serverUrl, this.config.deviceName, this.config.sharedSecret)
+            console.error('SyncClient: Token refresh/re-registration after 401 failed:', refreshError)
           }
-          return await this.downloadEventsFromOtherDevices(true)
-        } catch (refreshError) {
-          console.error('SyncClient: Token refresh/re-registration after 401 failed:', refreshError)
         }
+
+        throw new Error(`Failed to download events: ${response.status} ${errorText}`)
       }
 
-      throw new Error(`Failed to download events: ${response.status} ${errorText}`)
-    }
+      const result = await response.json()
+      const events: SyncEvent[] = result.events || []
 
-    const result = await response.json()
-    const events: SyncEvent[] = result.events || []
-    
-    console.log(`SyncClient: Downloaded ${events.length} events from other devices`)
-    
-    if (events.length > 0) {
-      // Process each downloaded event
+      console.log(`SyncClient: Downloaded ${events.length} events from other devices`)
+
+      // Apply sequentially, oldest first (the server already orders by timestamp)
       for (const event of events) {
         console.log('SyncClient: Processing downloaded event:', event.eventType, event.entityType, event.entityId)
         await this.applySyncEvent(event)
+        newestTimestamp = Math.max(newestTimestamp, event.timestamp)
       }
-      
+      totalApplied += events.length
+
+      if (!result.hasMore || events.length === 0) break
+      skip += take
+    }
+
+    if (totalApplied > 0) {
       // Notify about applied sync events
       if (this.callbacks.onSyncEventsApplied) {
-        console.log('SyncClient: Notifying about applied sync events:', events.length)
-        this.callbacks.onSyncEventsApplied(events.length)
+        console.log('SyncClient: Notifying about applied sync events:', totalApplied)
+        this.callbacks.onSyncEventsApplied(totalApplied)
       }
-      
+
       // Update the last download timestamp to the newest event's timestamp
-      const newestTimestamp = Math.max(...events.map(e => e.timestamp))
       await this.saveLastDownloadTimestamp(newestTimestamp)
       console.log('SyncClient: Updated last download timestamp to:', new Date(newestTimestamp).toLocaleString())
     } else {

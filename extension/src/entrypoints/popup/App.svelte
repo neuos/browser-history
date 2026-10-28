@@ -147,8 +147,25 @@
   // server - the way to pick up a server-side data correction (or just recover from any local
   // drift) without needing devtools access, which Firefox for Android doesn't offer at all. Can
   // take minutes for a large history, so it reports live progress rather than sitting silent.
+  // window.confirm() is silently suppressed in extension popups on some mobile browsers
+  // (Orion iOS/iPadOS), which made these buttons do nothing - confirm with a second tap instead.
+  let confirmingAction: 'resync' | 'disconnect' | null = null;
+  let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function confirmTwice(action: 'resync' | 'disconnect'): boolean {
+    if (confirmingAction === action) {
+      if (confirmTimer) clearTimeout(confirmTimer);
+      confirmingAction = null;
+      return true;
+    }
+    confirmingAction = action;
+    if (confirmTimer) clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(() => { confirmingAction = null; }, 4000);
+    return false;
+  }
+
   async function clearLocalCacheAndResync() {
-    if (!confirm('Clear local history cache and redownload everything from the server? This can take a moment.')) {
+    if (!confirmTwice('resync')) {
       return;
     }
     isResyncing = true;
@@ -166,7 +183,7 @@
   }
 
   async function clearSync() {
-    if (confirm('This will remove sync configuration and disconnect from the server. Continue?')) {
+    if (confirmTwice('disconnect')) {
       // Stop the refresh interval
       if (statusRefreshInterval) {
         clearInterval(statusRefreshInterval);
@@ -351,7 +368,7 @@
             {#if isResyncing}
               <span class="spinner"></span> Syncing...
             {:else}
-              Re-sync From Server
+              {confirmingAction === 'resync' ? 'Tap again to confirm' : 'Re-sync From Server'}
             {/if}
           </button>
 
@@ -359,7 +376,7 @@
             class="danger-btn"
             on:click={clearSync}
           >
-            Disconnect
+            {confirmingAction === 'disconnect' ? 'Tap again to confirm' : 'Disconnect'}
           </button>
         </div>
 
