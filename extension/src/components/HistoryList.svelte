@@ -209,18 +209,24 @@
       class="search-box"
       on:input={handleSearch}
     />
-    <input
-      type="date"
-      class="date-input"
-      bind:value={startDate}
-      on:change={handleSearch}
-    />
-    <input
-      type="date"
-      class="date-input"
-      bind:value={endDate}
-      on:change={handleSearch}
-    />
+    <label class="date-field">
+      <span class="date-label">From</span>
+      <input
+        type="date"
+        class="date-input"
+        bind:value={startDate}
+        on:change={handleSearch}
+      />
+    </label>
+    <label class="date-field">
+      <span class="date-label">To</span>
+      <input
+        type="date"
+        class="date-input"
+        bind:value={endDate}
+        on:change={handleSearch}
+      />
+    </label>
     <button class="refresh-btn" on:click={loadHistory} disabled={isLoading} hidden>
       {isLoading ? "Loading..." : "Refresh"}
     </button>
@@ -380,9 +386,26 @@
     box-shadow: 0 0 0 1px var(--color-accent);
   }
 
-  .date-input {
-    flex: 1 1 auto;
+  /* WebKit (Orion iOS/iPadOS) draws an empty <input type="date"> as a blank box with no
+     placeholder, so each input gets a visible caption instead of relying on the native one. */
+  .date-field {
+    flex: 1 1 140px;
     order: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .date-label {
+    font-size: 12px;
+    color: var(--color-text-secondary, var(--color-text-tertiary));
+  }
+
+  .date-input {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
     padding: 10px;
     font-size: 14px;
     border: 1px solid var(--color-border);
